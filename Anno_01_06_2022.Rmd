@@ -1,0 +1,323 @@
+---
+title: "Annotation file "
+author: "QuantBio - VMP"
+date: 01-06-2022
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+  pdf_document:
+    toc: yes
+    toc_depth: 4
+---
+
+ROSA - Please parameterize the following:
+  [1] Maybe the input directory, since all seurat objects are coming from 
+      differnt directories?
+  [2] Line 158, where we set the minimum cell count cut-off for classifying
+      cells as "others"
+ROSA - Also, please igore lines 188 - 312. We are putting the CNV 
+       inference on hold for now. Thanks!
+
+# Purpose
+This is a general script to perform cell type annotation of
+single cell RNA-seq datasets.
+
+```{r setup, include=FALSE, echo=FALSE}
+### Set knitr global options
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+
+### Load libraries
+library(data.table)
+library(SingleR)
+library(Seurat)
+library(glmnet)
+library(forcats)
+library(infercnv)
+library(biomaRt)
+library(plyr)
+library(ggplot2)
+library(janitor)
+library(BiocParallel)
+library(readr)
+
+theme_sara <- function() {
+  theme_bw(base_size=14)+
+    theme(axis.text=element_text(color="black"),
+          panel.background=element_rect(color="black"),
+          strip.text = element_text(size=12),
+          strip.background = element_rect(fill="white"))
+}
+```
+
+# Load the data in
+Make sure this is the unedited seurat file.
+
+```{r}
+### Load the scaled and normalized seurat object
+bassez1 <- readRDS(file="~/Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Seurat_Breast_Bassez1_MINIATURE2.rds")
+```
+
+# 1 - Annotate with singleR
+This will take an eternity or crash R. Don't repeat if you already have the labels.
+
+```{r}
+### Load reference data with Ensembl annotations.
+### ensembl=F indicates whether to convert row names to ensembl IDs
+ref.data <- HumanPrimaryCellAtlasData(ensembl=FALSE) 
+
+### Assign the cell types. For this step, I'm parellelizing it with 
+### the BiocParallel library. Parallelizing may not be necessary or helpful,
+### but its here. 
+cells <- SingleR(test=bassez1@assays[["RNA"]]@data,
+                 ref=ref.data, labels=ref.data$label.main,
+                 BPPARAM=MulticoreParam(detectCores())) 
+
+### Add to seurat
+bassez1@meta.data$SingleR<-cells$labels
+```
+
+## Annotate - Perform QC checks on new cell labels
+
+Purpose: The aim is to discard low delta values caused by (i) ambiguous assignments with 
+closely related reference labels and (ii) incorrect assignments that match 
+poorly to all reference labels. 
+
+TLDR: Here we prune out cell labels with low 
+quality cell-type-assignment.
+
+```{r, fig.height=8, fig.width = 10, warning=FALSE}
+### Plot all cell types identified and their scores
+plotScoreHeatmap(cells)
+
+### Plot the number of low-quality labels per cell assignment
+plotDeltaDistribution(cells, 
+                      ncol = 5,
+                      size=0.5) +
+  theme_sara()+
+  ylab("Delta score") +
+  xlab("Cell labels")
+
+### Count the cells that need to be pruned
+summary(is.na(cells$pruned.labels))
+
+## Prune out the low-quality reads
+prune<-pruneScores(cells,
+                   nmads = 3,
+                   min.diff.med = -Inf,
+                   min.diff.next = 0,
+                   get.thresholds = FALSE
+                   )
+
+prune<-which(prune=="TRUE")
+keep<-cells[-prune,]
+
+### Re-plot to ensure prune worked
+plotScoreHeatmap(keep) +
+  theme_sara()
+
+plotDeltaDistribution(keep, 
+                      ncol = 5,
+                      size=0.5) +
+  theme_sara() +
+  ylab("Delta score") +
+  xlab("Cell labels")
+```
+
+## Annotate - Pruned ambiguous cells
+
+```{r}
+### Prune the cells in the subsetted seurat objects
+bassez1<-bassez1[,-prune]
+
+### Convert to factor
+bassez1@meta.data$SingleR <- factor(bassez1@meta.data$SingleR)
+levels(bassez1@meta.data$SingleR) 
+```
+
+## Annotate - Merge similar cell types
+
+Merge ambiguous cell types into (1) fibroblasts (2) macrophages, 
+(3) B_cells, and (4) others.
+
+```{r}
+### If the cells are below 100, merge to "other". I'm also going to add neurons to this 
+### group because neurons aren't an anticipated cell type. Also, if the cells are B or T 
+### cell subtypes merge with B and T cells, respectively. 
+
+### So not to lose the low count b cell subtypes, collapse those first
+bassez1@meta.data$SingleR2 <- fct_collapse(bassez1@meta.data$SingleR,
+                                           B_cell=c("Pro-B_cell_CD34+","Pre-B_cell_CD34-",
+                                                    "B_cell"))
+
+freq<-data.frame(tabyl(bassez1@meta.data$SingleR2, sort = TRUE))
+colnames(freq)<-c("cells","n","proportion")
+freq$percent<-freq$proportion*100
+freq<-freq[order(freq$n, decreasing = TRUE),]
+
+### I used the above "tabyl" function to get the proportion of cells out of 
+### all total cells in case we want to set a cut-off using a proportion rather
+### than total count. 
+others<-as.vector(freq$cells[which(freq$n<50)])
+
+bassez1@meta.data$SingleR2 <- fct_collapse(bassez1@meta.data$SingleR2,
+                                           Fibroblasts=c("Fibroblasts",
+                                                         "Chondrocytes",
+                                                         "Smooth_muscle_cells",
+                                                         "Tissue_stem_cells"),
+#                                           MoMacDC=c("Macrophage","Monocyte","DC")
+                                           Others=c(others,
+                                                    "Embryonic_stem_cells",
+                                                    "GMP",
+                                                    "Hepatocytes",
+                                                    "iPS_cells",
+                                                    "Keratinocytes",
+                                                    "MSC",
+                                                    "Neuroepithelial_cell",
+                                                    "Neurons"))
+tabyl(bassez1@meta.data$SingleR2)
+
+### Change the identity from tissue type to cell type 
+Idents(bassez1)<-bassez1@meta.data$SingleR2
+```
+
+## Annotate - Identify tumor cells
+
+FOR NOW SKIP - This step utilizes inferCNV to infer copy number variations that will allow
+us to identify malignant cells.
+
+```{}
+### For inferCNV, we will have to assemble the inferCNV object which requires the
+### use of the following 3 objects: 1 - expression matrix, 2 - annotation matrix, 
+### and 3 - go (gene order) matrix. 
+
+### 1 - EXPRESSION MATRIX: Due to the length it will take to run the full
+### Seurat object, we will subset the seurat object to have no more than a
+### maximum of 2,000 cells per cell type, then run inferCNV. Downsampling
+### can be performed here or when assembling the inferCNV object. Due to the
+### way we will build the annotation matrix and go matrix and the inferCNV
+### object, I'll do it here. If done downstream, it gets complicated.
+temp<-bassez1
+rc<-as.matrix(temp@assays$RNA@data)
+
+### 2 - ANNOTATION MATRIX
+anns<-data.frame(labels=temp@meta.data[,c("SingleR2")])
+rownames(anns)<-rownames(temp@meta.data)
+
+### 3 - GO MATRIX: This matrix has the chromosome name, start, and end position
+### Since it is not present in Seurat, I will have to build it with biomart
+go<-data.frame(genes=rownames(temp),
+                  chromosome="",
+                  start="",
+                  end="")
+ensembl <- useEnsembl(biomart = "genes")
+ensembl <- useDataset(dataset = "hsapiens_gene_ensembl", mart = ensembl)
+
+### look at filters
+filters = listFilters(ensembl)
+attributes = listAttributes(ensembl)
+
+### Get the chromosome information
+chromosome_stuff<-getBM(attributes = c('entrezgene_accession',
+                                       'chromosome_name',
+                                       'start_position',
+                                       'end_position'),
+      filters = 'entrezgene_accession', 
+      values = go$genes, 
+      mart = ensembl)
+
+go$chromosome <- mapvalues(x=go$gene, 
+                         from=chromosome_stuff$entrezgene_accession, 
+                         to=as.character(as.vector(chromosome_stuff$chromosome_name)))
+
+go$start <- mapvalues(x=go$gene, 
+                         from=chromosome_stuff$entrezgene_accession, 
+                         to=as.character(as.vector(chromosome_stuff$start_position)))
+
+go$start<-as.numeric(go$start)
+
+go$end <- mapvalues(x=go$gene, 
+                         from=chromosome_stuff$entrezgene_accession, 
+                         to=as.character(as.vector(chromosome_stuff$end_position)))
+
+go$end<-as.numeric(go$end)
+
+### Subset by bonafide chromosome assignments (other chromosomes are haplotypes)
+### I'm sure there's a faster way to do this, just haven't found out
+go<-go[which(go$chromosome==1|go$chromosome==2|
+                 go$chromosome==3|go$chromosome==4|
+                 go$chromosome==5|go$chromosome==6|
+                 go$chromosome==7|go$chromosome==8|
+                 go$chromosome==9|go$chromosome==10|
+                 go$chromosome==11|go$chromosome==12|
+                 go$chromosome==13|go$chromosome==14|
+                 go$chromosome==15|go$chromosome==16|
+                 go$chromosome==17|go$chromosome==18|
+                 go$chromosome==19|go$chromosome==20|
+                 go$chromosome==21|go$chromosome==22),]
+
+rownames(go)<-go$genes
+go$genes<-NULL
+
+### 4 - inferCNV OBJECT: Now assemble the inferCNV object
+infercnv_obj = CreateInfercnvObject(raw_counts_matrix = rc,
+                                    annotations_file=anns,
+                                    gene_order_file=go,     
+                                    ref_group_names=c("T_cells","B_cell",
+                                                      "Macrophage","Monocyte",
+#                                                      "DC", "CMP", 
+                                                      "Fibroblasts")
+                                    ) 
+  
+### At long last, run inferCNV. For p-cut-offs, use 1 for smart-seq and 
+### 0.1 for 10x-genomics
+dir = "~/Desktop/inferCNV_output"
+infercnv_obj = infercnv::run(infercnv_obj,
+                             cutoff=0.1,  
+                             out_dir=dir, 
+                             cluster_by_groups=TRUE,  
+                             denoise=TRUE,
+                             num_threads=16, ### this PC has 16, check yours.
+                             HMM=TRUE,
+                             output_format = "pdf"#,
+#                             png_res=150
+                             )
+
+### Add the results to the temporary seurat object
+temp=infercnv::add_to_seurat(infercnv_output_path = dir,
+                             seurat_obj = temp,
+                             top_n=10)
+temp_meta<-temp@meta.data
+
+### Sum the total count of inferred CNVs
+lets_see<-temp_meta[,grepl("has_cnv" ,colnames(temp_meta))]
+lets_see$SingleR2<-temp_meta$SingleR2
+lets_melt<-melt(lets_see,
+                id.vars="SingleR2",
+                variable.name="CNV",
+                value.name="has_cnv")
+cnv_counts<-table(lets_melt$SingleR2, lets_melt$has_cnv)
+cnv_counts<-data.frame(no_cnv=cnv_counts[,1], has_cnv=cnv_counts[,2])
+
+### Identify likely  malignant cells
+malignant_cells<-rownames(cnv_counts[which.max(cnv_counts$has_cnv),])
+
+```
+
+### Replace the identified malignant cells types in the original seurat
+FOR NOW SKIP
+
+```{}
+bassez1@meta.data$SingleR2 <- fct_collapse(bassez1@meta.data$SingleR2,
+                                           Tumor_cells=malignant_cells)
+```
+
+# Write to file
+
+```{r}
+### All the QC is done, so now we may write to file
+write_rds(bassez1, file="~/Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Seurat_Breast_Bassez1_MINIATURE2.rds")
+#write_rds(bassez1@meta.data, file="/home/vincent/shared_folder/Metadata_Breast_Bassez1.rds")
+#saveRDS(as.matrix(bassez1@assays[["RNA"]]@data), file="/home/vincent/shared_folder/NormExpMatrix_Breast_Bassez1.rds")
+```
