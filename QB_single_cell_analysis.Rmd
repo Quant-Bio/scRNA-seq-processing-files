@@ -1,7 +1,7 @@
 ---
-title: "Single cell analysis: " #`r params$analysis`
+title: "Single cell analysis: `r params$analysed_dataset`"
 date: "Last compiled on `r format(Sys.time(), '%B %d, %Y')`"
-author: "QuantBio"
+author: "QuantBio `r params$more_authors`"
 output:
   rmdformats::downcute:
     self_contained: true
@@ -12,12 +12,27 @@ output:
     code_folding: hide
     fig_width: 10
     fig_height: 10
+    toc_depth: 5
 params:
-  analysis: NA
-  dir: NA
+  analysed_dataset: "Example"
+  more_authors: ""
+  QCS: true
+  qcs_dir_seurat: "../../Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Downloaded_unedited_data/Seurat_Breast_Bassez1_MINIATURE.rds"
+  qcs_save_file: "Seurat_Breast_Bassez1.rds"
+  qcs_indent_var: "orig.ident"
+  qcs_std_nFeature_RNA: 200
+  qcs_vars_regress: "nCount_RNA,percent.mt"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE}
+options(knitr.duplicate.label = 'allow')
+knitr::opts_chunk$set(message = FALSE)
+library(here)
 ```
 
+# 1 - Quality control and standardization file (QCStanAnn)
+This is a general script to perform quality control and standardization 
+of single cell RNA-seq datasets.
+
+```{r child = 'QCS_01_05_2022.Rmd', eval=params$QCS}
+```
