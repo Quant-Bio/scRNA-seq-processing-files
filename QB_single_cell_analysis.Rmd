@@ -1,0 +1,23 @@
+---
+title: "Single cell analysis: " #`r params$analysis`
+date: "Last compiled on `r format(Sys.time(), '%B %d, %Y')`"
+author: "QuantBio"
+output:
+  rmdformats::downcute:
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    gallery: false
+    highlight: tango
+    code_folding: hide
+    fig_width: 10
+    fig_height: 10
+params:
+  analysis: NA
+  dir: NA
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
