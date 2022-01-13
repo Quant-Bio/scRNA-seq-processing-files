@@ -13,10 +13,10 @@ library(readr)
 
 ```{r}
 ### First the seurat obect
-bassez1 <- readRDS(file=params$qcs_dir_seurat)
+seurat_analysed <- readRDS(file=params$dir_seurat)
 
 ### Change ident to original idents
-Idents(bassez1)<-bassez1@meta.data[,params$qcs_indent_var]
+Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$qcs_indent_var]
 ```
 
 ## 1.1 - Quality Control
@@ -41,10 +41,10 @@ droplet based. However, the caveat with smartseq is that it tends to capture a h
 
 ```{r}
 ### add mito.gene % in meta.data
-bassez1[["percent.mt"]] <- PercentageFeatureSet(object = bassez1, pattern = "^MT|^mt")
+seurat_analysed[["percent.mt"]] <- PercentageFeatureSet(object = seurat_analysed, pattern = "^MT|^mt")
 
 ### Plot the three parameters mentioned above
-VlnPlot(bassez1, 
+VlnPlot(seurat_analysed, 
         pt.size = 0,
         features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), 
         ncol = 3) 
@@ -53,15 +53,15 @@ VlnPlot(bassez1,
 ### nFeature_RNA metric > 200-3*MAD(nFeature_RNA) and < median(nFeature_RNA)+3*MAD(nFeature_RNA)
 ### nCount_RNA < median(nCountRNA)+3*MAD(nCountRNA)
 ### percent.mt < median(percent.mt)+3*MAD(percent.mt)
-bassez1 <- subset(x = bassez1, 
-                  subset = nFeature_RNA > max(params$qcs_std_nFeature_RNA, median(bassez1@meta.data$nFeature_RNA, na.rm = TRUE) - 3*mad(bassez1@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE))
-                  & nFeature_RNA < median(bassez1@meta.data$nFeature_RNA, na.rm = TRUE) + 3*mad(bassez1@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE)
-                  & nCount_RNA < median(bassez1@meta.data$nCount_RNA, na.rm = TRUE) + 3*mad(bassez1@meta.data$nCount_RNA, constant = 1.4826, na.rm = TRUE)
-                  & percent.mt < median(bassez1@meta.data$percent.mt, na.rm = TRUE) + 3*mad(bassez1@meta.data$percent.mt, constant = 1.4826, na.rm = TRUE)
+seurat_analysed <- subset(x = seurat_analysed, 
+                  subset = nFeature_RNA > max(params$qcs_std_nFeature_RNA, median(seurat_analysed@meta.data$nFeature_RNA, na.rm = TRUE) - 3*mad(seurat_analysed@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE))
+                  & nFeature_RNA < median(seurat_analysed@meta.data$nFeature_RNA, na.rm = TRUE) + 3*mad(seurat_analysed@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE)
+                  & nCount_RNA < median(seurat_analysed@meta.data$nCount_RNA, na.rm = TRUE) + 3*mad(seurat_analysed@meta.data$nCount_RNA, constant = 1.4826, na.rm = TRUE)
+                  & percent.mt < median(seurat_analysed@meta.data$percent.mt, na.rm = TRUE) + 3*mad(seurat_analysed@meta.data$percent.mt, constant = 1.4826, na.rm = TRUE)
                   )
 
 ### re-plot
-VlnPlot(bassez1, 
+VlnPlot(seurat_analysed, 
         pt.size=0,
         features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), 
         ncol = 3) 
@@ -75,7 +75,7 @@ For our data we choose to keep only genes which are expressed in **10 or more ce
 
 ```{r}
 ### Create the new seurat object
-bassez1 <- CreateSeuratObject(bassez1@assays$RNA@counts, meta.data = bassez1@meta.data,
+seurat_analysed <- CreateSeuratObject(seurat_analysed@assays$RNA@counts, meta.data = seurat_analysed@meta.data,
                               min.cells = 1, min.features = 1)
 ```
 
@@ -90,7 +90,7 @@ and log-transforms the result.
 Normalized values are stored in **[["RNA"]]@data**.
 
 ```{r}
-bassez1 <- NormalizeData(bassez1, 
+seurat_analysed <- NormalizeData(seurat_analysed, 
                          normalization.method = "LogNormalize", 
                          scale.factor = 10000)
 ```
@@ -116,13 +116,13 @@ through them one at a time.
 
 ```{r}
 ### Find the top 2000 most variable genes for PCA analysis
-bassez1 <- FindVariableFeatures(object=bassez1, selection.method = "vst", 
+seurat_analysed <- FindVariableFeatures(object=seurat_analysed, selection.method = "vst", 
                             nfeatures = 2000)
 
 ### Plot variable features with labels
 ### Identify the 10 most highly variable genes
-top10 <- head(VariableFeatures(bassez1), 10)
-labels <- VariableFeaturePlot(bassez1)
+top10 <- head(VariableFeatures(seurat_analysed), 10)
+labels <- VariableFeaturePlot(seurat_analysed)
 LabelPoints(plot = labels, points = top10, repel = TRUE)
 ```
 
@@ -147,8 +147,8 @@ By default `ScaleData()` will only scale the identified 2,000 genes unless speci
 
 ```{r}
 ### Now scale
-#all.genes <- rownames(x = bassez1)
-bassez1 <- ScaleData(object = bassez1, 
+#all.genes <- rownames(x = seurat_analysed)
+seurat_analysed <- ScaleData(object = seurat_analysed, 
 #                     features = all.genes, 
                      verbose = FALSE,
                      vars.to.regress = unlist(strsplit(params$qcs_vars_regress, split = ",", fixed = T)))
@@ -162,18 +162,18 @@ This is done by calculating the G2M marker score with the `CellCycleScoring()` f
 ### [1] Create G2M marker gene list (i.e. genes associated with the G2M phase of the 
 ### cell cycle using Seurat's built-in cc.genes (cell cycle) genes list
 g2m.genes <- cc.genes$g2m.genes
-g2m <- rownames(bassez1)[rownames(bassez1) %in% g2m.genes]
+g2m <- rownames(seurat_analysed)[rownames(seurat_analysed) %in% g2m.genes]
 
 ### [2] Calculate G2M marker module score.
-bassez1 <- CellCycleScoring(bassez1, 
+seurat_analysed <- CellCycleScoring(seurat_analysed, 
                             s.features = cc.genes$s.genes, ### Genes associated with s-phase
                             g2m.features = g2m.genes, ### Genes associated with G2M phase
                             set.ident = TRUE)
 ```
 
 ## 1.4 - Write to file
-All the QC is done, the file is save on `r params$qcs_save_file`.
+The QC is done, the file is save on `r params$qcs_save_file`.
 
 ```{r, eval=FALSE, include=FALSE}
-write_rds(bassez1, file=params$qcs_save_file)
+write_rds(seurat_analysed, file=params$qcs_save_file)
 ```
