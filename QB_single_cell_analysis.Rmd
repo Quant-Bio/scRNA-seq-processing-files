@@ -4,7 +4,7 @@ date: "Last compiled on `r format(Sys.time(), '%B %d, %Y')`"
 author: "QuantBio `r params$more_authors`"
 output:
   rmdformats::downcute:
-    self_contained: true
+    self_contained: false
     thumbnails: false
     lightbox: true
     gallery: false
@@ -16,12 +16,15 @@ output:
 params:
   analysed_dataset: "Example"
   more_authors: ""
+  dir_seurat: "../../Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Downloaded_unedited_data/Seurat_Breast_Bassez1_MINIATURE.rds"
   QCS: true
-  qcs_dir_seurat: "../../Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Downloaded_unedited_data/Seurat_Breast_Bassez1_MINIATURE.rds"
   qcs_save_file: "Seurat_Breast_Bassez1.rds"
   qcs_indent_var: "orig.ident"
   qcs_std_nFeature_RNA: 200
-  qcs_vars_regress: "nCount_RNA,percent.mt"
+  qcs_vars_regress: ["nCount_RNA", "percent.mt"]
+  ANNO: true
+  anno_cutoff: 50
+  anno_save_file: "Seurat_Breast_Bassez1_MINIATURE2.rds"
 ---
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE}
@@ -31,8 +34,20 @@ library(here)
 ```
 
 # 1 - Quality control and standardization file (QCStanAnn)
-This is a general script to perform quality control and standardization 
-of single cell RNA-seq datasets.
+Perform quality control and standardization of single cell RNA-seq datasets.
 
 ```{r child = 'QCS_01_05_2022.Rmd', eval=params$QCS}
+```
+
+# 2 - Annotation
+Perform cell type annotation of single cell RNA-seq datasets.
+
+```{r child = 'Anno_01_06_2022.Rmd', eval=params$ANNO}
+```
+
+# Information about the Session 
+
+Information about R, the OS and attached or loaded packages
+```{r sesion_info, echo=FALSE}
+sessionInfo()
 ```
