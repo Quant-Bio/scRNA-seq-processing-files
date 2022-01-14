@@ -62,13 +62,15 @@ Here we prune out cell labels with low quality cell-type-assignment.
 Low delta values are caused by:
 
 1. ambiguous assignments with closely related reference labels
-2. incorrect assignments that match poorly to all reference labels. 
+2. incorrect assignments that match poorly to all reference labels.
 
-```{r anno_qc, fig.height=8, fig.width = 10, warning=FALSE}
-### Plot all cell types identified and their scores
+We first check the scores and the number of low-quality labels
+
+```{r anno_qc1, fig.height=8, fig.width = 10, warning=FALSE, fig.cap="All cell types identified and their scores"}
 plotScoreHeatmap(cells)
+```
 
-### Plot the number of low-quality labels per cell assignment
+```{r anno_qc2, fig.height=8, fig.width = 10, warning=FALSE, fig.cap = "Number of low-quality labels per cell assignment"}
 plotDeltaDistribution(cells, 
                       ncol = 5,
                       size=0.5) +
@@ -76,9 +78,18 @@ plotDeltaDistribution(cells,
   ylab("Delta score") +
   xlab("Cell labels")
 
-### Count the cells that need to be pruned
-summary(is.na(cells$pruned.labels))
+```
 
+```{r anno_qc3}
+table(is.na(cells$pruned.labels)) %>%
+  as.data.frame() %>%
+  dplyr::rename(Pruned = Var1, Count = Freq) %>%
+  knitr::kable(.,
+             caption = "Count the cells that need to be pruned")
+```
+
+We prune **`r as.numeric(table(is.na(cells$pruned.labels))["TRUE"])` cells**.
+```{r}
 ## Prune out the low-quality reads
 prune<-pruneScores(cells,
                    nmads = 3,
@@ -89,10 +100,15 @@ prune<-pruneScores(cells,
 
 prune<-which(prune=="TRUE")
 keep<-cells[-prune,]
+```
+
+```{r anno_qc1, fig.height=8, fig.width = 10, warning=FALSE, fig.cap="All cell types identified and their scores", message=FALSE}
 
 ### Re-plot to ensure prune worked
-plotScoreHeatmap(keep) +
-  theme_sara()
+plotScoreHeatmap(keep) 
+```
+
+```{r anno_qc2, fig.height=8, fig.width = 10, warning=FALSE, fig.cap = "Number of low-quality labels per cell assignment"}
 
 plotDeltaDistribution(keep, 
                       ncol = 5,
@@ -157,7 +173,12 @@ seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$Sin
                                                     "MSC",
                                                     "Neuroepithelial_cell",
                                                     "Neurons"))
-tabyl(seurat_analysed@meta.data$SingleR2)
+tabyl(seurat_analysed@meta.data$SingleR2) %>%
+  as.data.frame() %>%
+  dplyr::rename(`Cell type` = `seurat_analysed@meta.data$SingleR2`, 
+                `Number of cells` = n, Percent = percent) %>%
+    knitr::kable(.,
+             caption = "Proportion of cells")
 
 ### Change the identity from tissue type to cell type 
 Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
@@ -297,9 +318,8 @@ seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$Sin
 ```
 
 ## 2.4 - Write to file
-The annotation is done, the file is save on `r params$anno_save_file`.
+The annotation is done, the file is save on _`r params$anno_save_file`_.
 
-```{r}
-### All the QC is done, so now we may write to file
+```{r, include=FALSE}
 write_rds(seurat_analysed, file=params$anno_save_file)
 ```
