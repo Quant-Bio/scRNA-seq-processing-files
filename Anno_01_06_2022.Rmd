@@ -1,30 +1,5 @@
----
-title: "Annotation file "
-author: "QuantBio - VMP"
-date: 01-06-2022
-output:
-  html_document:
-    toc: yes
-    toc_float: yes
-    number_sections: yes
-  pdf_document:
-    toc: yes
-    toc_depth: 4
----
 
-ROSA - Please parameterize the following:
-  [1] Maybe the input directory, since all seurat objects are coming from 
-      differnt directories?
-  [2] Line 158, where we set the minimum cell count cut-off for classifying
-      cells as "others"
-ROSA - Also, please igore lines 188 - 312. We are putting the CNV 
-       inference on hold for now. Thanks!
-
-# Purpose
-This is a general script to perform cell type annotation of
-single cell RNA-seq datasets.
-
-```{r setup, include=FALSE, echo=FALSE}
+```{r setup, include=FALSE, echo=FALSE, include=FALSE}
 ### Set knitr global options
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 
@@ -34,13 +9,15 @@ library(SingleR)
 library(Seurat)
 library(glmnet)
 library(forcats)
-library(infercnv)
+# library(infercnv)
 library(biomaRt)
 library(plyr)
 library(ggplot2)
 library(janitor)
 library(BiocParallel)
 library(readr)
+library(celldex)
+library(viridis)
 
 theme_sara <- function() {
   theme_bw(base_size=14)+
@@ -51,43 +28,43 @@ theme_sara <- function() {
 }
 ```
 
-# Load the data in
-Make sure this is the unedited seurat file.
-
-```{r}
-### Load the scaled and normalized seurat object
-bassez1 <- readRDS(file="~/Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Seurat_Breast_Bassez1_MINIATURE2.rds")
+```{r, echo = FALSE, include = FALSE}
+if (any(is.null(seurat_analysed), class(seurat_analysed) != "Seurat")){
+  seurat_analysed = readRDS(params$qcs_save_file)
+}
 ```
 
-# 1 - Annotate with singleR
-This will take an eternity or crash R. Don't repeat if you already have the labels.
+## 2.1 - Annotate with singleR
+Reference data are load with Ensembl annotations.
+`ensembl=F` indicates to not convert row names to ensembl IDs.
 
-```{r}
-### Load reference data with Ensembl annotations.
-### ensembl=F indicates whether to convert row names to ensembl IDs
+> **_NOTE:_** This will take an eternity or crash R. 
+Don't repeat if you already have the labels.
+
+
+```{r anno_singleR}
 ref.data <- HumanPrimaryCellAtlasData(ensembl=FALSE) 
 
 ### Assign the cell types. For this step, I'm parellelizing it with 
 ### the BiocParallel library. Parallelizing may not be necessary or helpful,
 ### but its here. 
-cells <- SingleR(test=bassez1@assays[["RNA"]]@data,
+cells <- SingleR(test=seurat_analysed@assays[["RNA"]]@data,
                  ref=ref.data, labels=ref.data$label.main,
                  BPPARAM=MulticoreParam(detectCores())) 
 
 ### Add to seurat
-bassez1@meta.data$SingleR<-cells$labels
+seurat_analysed@meta.data$SingleR <- cells$labels
 ```
 
-## Annotate - Perform QC checks on new cell labels
+## 2.2 - Perform QC checks on new cell labels
 
-Purpose: The aim is to discard low delta values caused by (i) ambiguous assignments with 
-closely related reference labels and (ii) incorrect assignments that match 
-poorly to all reference labels. 
+Here we prune out cell labels with low quality cell-type-assignment.
+Low delta values are caused by:
 
-TLDR: Here we prune out cell labels with low 
-quality cell-type-assignment.
+1. ambiguous assignments with closely related reference labels
+2. incorrect assignments that match poorly to all reference labels. 
 
-```{r, fig.height=8, fig.width = 10, warning=FALSE}
+```{r anno_qc, fig.height=8, fig.width = 10, warning=FALSE}
 ### Plot all cell types identified and their scores
 plotScoreHeatmap(cells)
 
@@ -125,33 +102,37 @@ plotDeltaDistribution(keep,
   xlab("Cell labels")
 ```
 
-## Annotate - Pruned ambiguous cells
+## 2.3 - Pruned ambiguous cells
 
-```{r}
+```{r anno_pruned, eval=FALSE}
 ### Prune the cells in the subsetted seurat objects
-bassez1<-bassez1[,-prune]
+seurat_analysed<-seurat_analysed[,-prune]
 
 ### Convert to factor
-bassez1@meta.data$SingleR <- factor(bassez1@meta.data$SingleR)
-levels(bassez1@meta.data$SingleR) 
+seurat_analysed@meta.data$SingleR <- factor(seurat_analysed@meta.data$SingleR)
+levels(seurat_analysed@meta.data$SingleR) 
 ```
 
-## Annotate - Merge similar cell types
+## 2.4 - Merge similar cell types
 
-Merge ambiguous cell types into (1) fibroblasts (2) macrophages, 
-(3) B_cells, and (4) others.
+Merge ambiguous cell types into:
 
-```{r}
-### If the cells are below 100, merge to "other". I'm also going to add neurons to this 
-### group because neurons aren't an anticipated cell type. Also, if the cells are B or T 
-### cell subtypes merge with B and T cells, respectively. 
+(1) fibroblasts 
+(2) macrophages
+(3) B_cells
+(4) others
 
+If the cells are below `r params$anno_cutoff`, they are merge to "other". 
+Neurons are also added to this group because neurons aren't an anticipated cell type. 
+Also, if the cells are B or T, cell subtypes merge with B and T cells, respectively. 
+
+```{r merge_cell_types}
 ### So not to lose the low count b cell subtypes, collapse those first
-bassez1@meta.data$SingleR2 <- fct_collapse(bassez1@meta.data$SingleR,
+seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$SingleR,
                                            B_cell=c("Pro-B_cell_CD34+","Pre-B_cell_CD34-",
                                                     "B_cell"))
 
-freq<-data.frame(tabyl(bassez1@meta.data$SingleR2, sort = TRUE))
+freq<-data.frame(tabyl(seurat_analysed@meta.data$SingleR2, sort = TRUE))
 colnames(freq)<-c("cells","n","proportion")
 freq$percent<-freq$proportion*100
 freq<-freq[order(freq$n, decreasing = TRUE),]
@@ -159,9 +140,9 @@ freq<-freq[order(freq$n, decreasing = TRUE),]
 ### I used the above "tabyl" function to get the proportion of cells out of 
 ### all total cells in case we want to set a cut-off using a proportion rather
 ### than total count. 
-others<-as.vector(freq$cells[which(freq$n<50)])
+others<-as.vector(freq$cells[which(freq$n<params$anno_cutoff)])
 
-bassez1@meta.data$SingleR2 <- fct_collapse(bassez1@meta.data$SingleR2,
+seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$SingleR2,
                                            Fibroblasts=c("Fibroblasts",
                                                          "Chondrocytes",
                                                          "Smooth_muscle_cells",
@@ -176,18 +157,20 @@ bassez1@meta.data$SingleR2 <- fct_collapse(bassez1@meta.data$SingleR2,
                                                     "MSC",
                                                     "Neuroepithelial_cell",
                                                     "Neurons"))
-tabyl(bassez1@meta.data$SingleR2)
+tabyl(seurat_analysed@meta.data$SingleR2)
 
 ### Change the identity from tissue type to cell type 
-Idents(bassez1)<-bassez1@meta.data$SingleR2
+Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
 ```
 
-## Annotate - Identify tumor cells
+## 2.5 - Identify tumor cells
 
-FOR NOW SKIP - This step utilizes inferCNV to infer copy number variations that will allow
+This step utilizes `inferCNV` to infer copy number variations that will allow
 us to identify malignant cells.
 
-```{}
+> **_NOTE:_** For Now Skip
+
+```{r, eval=FALSE, include=FALSE}
 ### For inferCNV, we will have to assemble the inferCNV object which requires the
 ### use of the following 3 objects: 1 - expression matrix, 2 - annotation matrix, 
 ### and 3 - go (gene order) matrix. 
@@ -198,7 +181,7 @@ us to identify malignant cells.
 ### can be performed here or when assembling the inferCNV object. Due to the
 ### way we will build the annotation matrix and go matrix and the inferCNV
 ### object, I'll do it here. If done downstream, it gets complicated.
-temp<-bassez1
+temp<-seurat_analysed
 rc<-as.matrix(temp@assays$RNA@data)
 
 ### 2 - ANNOTATION MATRIX
@@ -306,18 +289,17 @@ malignant_cells<-rownames(cnv_counts[which.max(cnv_counts$has_cnv),])
 ```
 
 ### Replace the identified malignant cells types in the original seurat
-FOR NOW SKIP
+> **_NOTE:_** For Now Skip
 
-```{}
-bassez1@meta.data$SingleR2 <- fct_collapse(bassez1@meta.data$SingleR2,
+```{r, include=FALSE, eval=FALSE}
+seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$SingleR2,
                                            Tumor_cells=malignant_cells)
 ```
 
-# Write to file
+## 2.4 - Write to file
+The annotation is done, the file is save on `r params$anno_save_file`.
 
-```{r}
+```{r, eval=FALSE}
 ### All the QC is done, so now we may write to file
-write_rds(bassez1, file="~/Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Seurat_Breast_Bassez1_MINIATURE2.rds")
-#write_rds(bassez1@meta.data, file="/home/vincent/shared_folder/Metadata_Breast_Bassez1.rds")
-#saveRDS(as.matrix(bassez1@assays[["RNA"]]@data), file="/home/vincent/shared_folder/NormExpMatrix_Breast_Bassez1.rds")
+write_rds(seurat_analysed, file=params$anno_save_file)
 ```
