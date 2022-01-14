@@ -1,4 +1,15 @@
+---
+params:
+  analysed_dataset: "Example"
+  more_authors: ""
+  dir_seurat: "../../Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Downloaded_unedited_data/Seurat_Breast_Bassez1_MINIATURE.rds"
+  QCS: true
+  qcs_save_file: "Seurat_Breast_Bassez1.rds"
+  qcs_indent_var: "orig.ident"
+  qcs_std_nFeature_RNA: 200
+  qcs_vars_regress: "nCount_RNA,percent.mt"
 
+---
 ```{r setup, include=FALSE, echo=FALSE}
 ### Set knitr global options
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
@@ -75,8 +86,9 @@ For our data we choose to keep only genes which are expressed in **10 or more ce
 
 ```{r}
 ### Create the new seurat object
-seurat_analysed <- CreateSeuratObject(seurat_analysed@assays$RNA@counts, meta.data = seurat_analysed@meta.data,
-                              min.cells = 1, min.features = 1)
+seurat_analysed <- CreateSeuratObject(seurat_analysed@assays$RNA@counts, 
+                                      meta.data = seurat_analysed@meta.data, 
+                                      min.cells = 1, min.features = 1)
 ```
 
 ## 1.2 - Standardize
@@ -151,7 +163,8 @@ By default `ScaleData()` will only scale the identified 2,000 genes unless speci
 seurat_analysed <- ScaleData(object = seurat_analysed, 
 #                     features = all.genes, 
                      verbose = FALSE,
-                     vars.to.regress = unlist(strsplit(params$qcs_vars_regress, split = ",", fixed = T)))
+                     vars.to.regress = unlist(strsplit(params$qcs_vars_regress, 
+                                                       split = ",", fixed = T)))
 ```
 
 ## 1.3 - Identify the cell cycle phase for each cell
@@ -174,6 +187,6 @@ seurat_analysed <- CellCycleScoring(seurat_analysed,
 ## 1.4 - Write to file
 The QC is done, the file is save on `r params$qcs_save_file`.
 
-```{r, eval=FALSE, include=FALSE}
+```{r, include=FALSE}
 write_rds(seurat_analysed, file=params$qcs_save_file)
 ```
