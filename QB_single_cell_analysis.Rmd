@@ -25,6 +25,12 @@ params:
   ANNO: true
   anno_cutoff: 50
   anno_save_file: "Seurat_Breast_Bassez1_MINIATURE2.rds"
+  DEx: true
+  dex_save_file: "DE_bassez1_MINATURE2.csv"
+  dex_stdev: 3
+  dex_min_pct: 0.25
+  dex_logfc_threshold: 0.0
+  dex_p_val_adj: 0.1
 ---
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE}
@@ -43,6 +49,12 @@ Perform quality control and standardization of single cell RNA-seq datasets.
 Perform cell type annotation of single cell RNA-seq datasets.
 
 ```{r child = 'Anno_01_06_2022.Rmd', eval=params$ANNO}
+```
+
+# 3 - Differentilal Expression analysis
+Identify differentially expressed genes in scRNA-seq data
+
+```{r child = 'DEx_01_07_2022.Rmd', eval=params$DEx}
 ```
 
 # Information about the Session 
