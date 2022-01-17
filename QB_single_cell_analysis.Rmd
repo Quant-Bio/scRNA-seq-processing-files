@@ -26,6 +26,7 @@ params:
   anno_cutoff: 50
   anno_save_file: "Seurat_Breast_Bassez1_MINIATURE2.rds"
   DEx: true
+  dex_cluster_algorithm: 1
   dex_save_file: "DE_bassez1_MINATURE2.csv"
   dex_stdev: 3
   dex_min_pct: 0.25
@@ -60,6 +61,7 @@ Identify differentially expressed genes in scRNA-seq data
 # Information about the Session 
 
 Information about R, the OS and attached or loaded packages
+
 ```{r sesion_info, echo=FALSE}
-sessionInfo()
+pander::pander(sessionInfo(), compact = FALSE)
 ```
