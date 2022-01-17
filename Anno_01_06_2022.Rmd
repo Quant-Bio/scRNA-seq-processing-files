@@ -36,13 +36,13 @@ if (any(is.null(seurat_analysed), class(seurat_analysed) != "Seurat")){
 
 ## 2.1 - Annotate with singleR
 Reference data are load with Ensembl annotations.
-`ensembl=F` indicates to not convert row names to ensembl IDs.
+`ensembl = F` indicates to not convert row names to ensembl IDs.
 
 > **_NOTE:_** This will take an eternity or crash R. 
 Don't repeat if you already have the labels.
 
 
-```{r anno_singleR}
+```{r anno_singleR, tidy='styler', tidy.opts=list(strict=FALSE)}
 ref.data <- HumanPrimaryCellAtlasData(ensembl=FALSE) 
 
 ### Assign the cell types. For this step, I'm parellelizing it with 
@@ -66,11 +66,11 @@ Low delta values are caused by:
 
 We first check the scores and the number of low-quality labels
 
-```{r anno_qc1, fig.height=8, fig.width = 10, warning=FALSE, fig.cap="All cell types identified and their scores"}
+```{r anno_qc1, fig.height=8, fig.width = 10, fig.cap="All cell types identified and their scores (pre pruned)", fig.align='center', tidy='styler', tidy.opts=list(strict=FALSE), warning=FALSE}
 plotScoreHeatmap(cells)
 ```
 
-```{r anno_qc2, fig.height=8, fig.width = 10, warning=FALSE, fig.cap = "Number of low-quality labels per cell assignment"}
+```{r anno_qc2, fig.height=8, fig.width = 10, warning=FALSE, fig.cap = "Number of low-quality labels per cell assignment (pre pruned)", fig.align='center', tidy='styler', tidy.opts=list(strict=FALSE)}
 plotDeltaDistribution(cells, 
                       ncol = 5,
                       size=0.5) +
@@ -80,7 +80,7 @@ plotDeltaDistribution(cells,
 
 ```
 
-```{r anno_qc3}
+```{r anno_qc3, tidy='styler', tidy.opts=list(strict=FALSE)}
 table(is.na(cells$pruned.labels)) %>%
   as.data.frame() %>%
   dplyr::rename(Pruned = Var1, Count = Freq) %>%
@@ -89,7 +89,7 @@ table(is.na(cells$pruned.labels)) %>%
 ```
 
 We prune **`r as.numeric(table(is.na(cells$pruned.labels))["TRUE"])` cells**.
-```{r}
+```{r tidy='styler', tidy.opts=list(strict=FALSE)}
 ## Prune out the low-quality reads
 prune<-pruneScores(cells,
                    nmads = 3,
@@ -102,13 +102,13 @@ prune<-which(prune=="TRUE")
 keep<-cells[-prune,]
 ```
 
-```{r anno_qc1, fig.height=8, fig.width = 10, warning=FALSE, fig.cap="All cell types identified and their scores", message=FALSE}
+```{r anno_qc1, fig.height=8, fig.width = 10, fig.cap="All cell types identified and their scores (after prune)", fig.align='center', warning=FALSE, message=FALSE, tidy='styler', tidy.opts=list(strict=FALSE)}
 
 ### Re-plot to ensure prune worked
 plotScoreHeatmap(keep) 
 ```
 
-```{r anno_qc2, fig.height=8, fig.width = 10, warning=FALSE, fig.cap = "Number of low-quality labels per cell assignment"}
+```{r anno_qc2, fig.height=8, fig.width = 10, fig.align='center', fig.cap = "Number of low-quality labels per cell assignment (after prune)", warning=FALSE,  tidy='styler', tidy.opts=list(strict=FALSE)}
 
 plotDeltaDistribution(keep, 
                       ncol = 5,
@@ -120,7 +120,7 @@ plotDeltaDistribution(keep,
 
 ## 2.3 - Pruned ambiguous cells
 
-```{r anno_pruned, eval=FALSE}
+```{r anno_pruned, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Prune the cells in the subsetted seurat objects
 seurat_analysed<-seurat_analysed[,-prune]
 
@@ -142,7 +142,7 @@ If the cells are below `r params$anno_cutoff`, they are merge to "other".
 Neurons are also added to this group because neurons aren't an anticipated cell type. 
 Also, if the cells are B or T, cell subtypes merge with B and T cells, respectively. 
 
-```{r merge_cell_types}
+```{r merge_cell_types, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### So not to lose the low count b cell subtypes, collapse those first
 seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$SingleR,
                                            B_cell=c("Pro-B_cell_CD34+","Pre-B_cell_CD34-",
@@ -173,15 +173,19 @@ seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$Sin
                                                     "MSC",
                                                     "Neuroepithelial_cell",
                                                     "Neurons"))
+
+### Change the identity from tissue type to cell type 
+Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
+```
+
+```{r, echo = FALSE, tidy='styler', tidy.opts=list(strict=FALSE)}
 tabyl(seurat_analysed@meta.data$SingleR2) %>%
   as.data.frame() %>%
   dplyr::rename(`Cell type` = `seurat_analysed@meta.data$SingleR2`, 
                 `Number of cells` = n, Percent = percent) %>%
     knitr::kable(.,
-             caption = "Proportion of cells")
-
-### Change the identity from tissue type to cell type 
-Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
+             caption = "Proportion of cells",
+             digits = 2)
 ```
 
 ## 2.5 - Identify tumor cells
@@ -318,7 +322,7 @@ seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$Sin
 ```
 
 ## 2.4 - Write to file
-The annotation is done, the file is save on _`r params$anno_save_file`_.
+The annotation is done, the file is save on **_`r params$anno_save_file`_**.
 
 ```{r, include=FALSE}
 write_rds(seurat_analysed, file=params$anno_save_file)
