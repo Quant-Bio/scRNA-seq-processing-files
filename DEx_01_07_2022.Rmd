@@ -58,6 +58,11 @@ phase.colors <- c("G1"="#BF6ECA",
                "G2M"="#ACDE7C",
                "S"="#BEBEBB")
 
+cluster_option_readable = dplyr::case_when(params$dex_cluster_algorithm == 1 ~ "Original Louvain algorithm",
+                                           params$dex_cluster_algorithm == 2 ~ "Louvain with multilevel refinement",
+                                           params$dex_cluster_algorithm == 3 ~ "SLM algorithm",
+                                           params$dex_cluster_algorithm == 4 ~ "Leiden algorithm")
+
 ### If more colors are needed, use the following-------------------------------
 #library(randomcoloR)
 #n <- 3
@@ -119,7 +124,8 @@ features_pca %>%
   dplyr::arrange(PCs) %>%
   tibble::column_to_rownames(var = "PCs") %>%
   knitr::kable(.,
-               caption = "Top 5 features in the first 15 Principal Components")
+               caption = "Top 5 features in the first 15 Principal Components") %>%
+  kableExtra::column_spec(1, bold = T)
 ```
 
 ### Method 2 - VizDimLoadings
@@ -206,16 +212,18 @@ refine the edge weights between any two cells based on the shared overlap in the
 local neighborhoods (Jaccard similarity). 
 This step is performed using the `FindNeighbors()`
 
-To cluster the cells, we next apply modularity optimization techniques such as the 
-**Louvain algorithm** (default) or **SLM** [SLM, Blondel et al., Journal of Statistical 
-Mechanics](https://iopscience.iop.org/article/10.1088/1742-5468/2008/10/P10008), 
-to iteratively group cells together, with the goal of optimizing the 
-standard modularity function. 
-The `FindClusters()` function implements this procedure.
+To cluster the cells, we next apply modularity optimization techniques 
+implemented in the function `FindClusters()` from the _Seurat package_.
+
+Available options are the Louvain algorithm (default) or SLM [Blondel et al. 2008](https://iopscience.iop.org/article/10.1088/1742-5468/2008/10/P10008), 
+that iteratively group cells together, with the goal of optimizing the 
+standard modularity function.
 Optimal resolution for 3K cells often ranges from 0.4 to 1.2 and increases the larger
 the dataset.
 
-```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
+The option selected for this analysis is **`r cluster_option_readable`**.
+
+```{r, tidy='styler', tidy.opts=list(strict=FALSE), comment= ""}
 ###--------------------THIS SECTION CAN BE SKIPPED----------------------------
 ###-----------UNLESS IT HASN'T BEEN DONE, THEN DON'T SKIP IT, DO IT-----------
 
@@ -223,7 +231,8 @@ the dataset.
 seurat_analysed <- FindNeighbors(seurat_analysed, dims = 1:length(PCs))
 
 ### Identify clusters
-seurat_analysed <- FindClusters(seurat_analysed)
+seurat_analysed <- FindClusters(seurat_analysed, 
+                                algorithm = params$dex_cluster_algorithm)
 
 ### Run uMAP and tSNE
 seurat_analysed <- RunUMAP(seurat_analysed, dims = 1:length(PCs))
@@ -293,9 +302,9 @@ DE_seurat_analysed <- FindAllMarkers(seurat_analysed,
                              min.pct = params$dex_min_pct, 
                              logfc.threshold = params$dex_logfc_threshold)
 
-sigs <- DE_seurat_analysed[which(DE_seurat_analysed$p_val_adj< 0.1,#params$dex_p_val_adj &
-                           DE_seurat_analysed$pct.1>0.25,#params$dex_min_pct &
-                           DE_seurat_analysed$avg_log2FC>0.0),]#params$dex_logfc_threshold),]
+sigs <- DE_seurat_analysed[which(DE_seurat_analysed$p_val_adj< params$dex_p_val_adj &
+                           DE_seurat_analysed$pct.1>params$dex_min_pct &
+                           DE_seurat_analysed$avg_log2FC>params$dex_logfc_threshold),]
 
 top5 <- sigs %>%
     group_by(cluster) %>%
