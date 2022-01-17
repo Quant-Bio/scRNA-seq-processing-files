@@ -126,7 +126,7 @@ seurat_analysed<-seurat_analysed[,-prune]
 
 ### Convert to factor
 seurat_analysed@meta.data$SingleR <- factor(seurat_analysed@meta.data$SingleR)
-levels(seurat_analysed@meta.data$SingleR) 
+# levels(seurat_analysed@meta.data$SingleR)
 ```
 
 ## 2.4 - Merge similar cell types
