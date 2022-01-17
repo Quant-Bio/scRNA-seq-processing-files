@@ -1,29 +1,3 @@
----
-title: "Bassez breast scRNA-seq analysis"
-author: "QuantBio - VMP"
-date: 9-30-2021
-output:
-  html_document:
-    toc: yes
-    toc_float: yes
-    number_sections: yes
-  pdf_document:
-    toc: yes
-    toc_depth: 4
----
-
-ROSA - Things to parameterize, if possible:
-  [1] - Line 152, where I set the stdev cut-off for the PCs selected
-  [2] - Line 244 and 245, where we set the cut-offs for pct and fold-change
-
-  ALSO - this file may take longer to run than the other files due to
-  differential expression. I recommend downsampling before you start using:
-  Idents(bassez1)<-bassez1@meta.data$SingleR2
-  bassez1<-subset(bassez1, downsample=1000)
-
-# Purpose
-To identify differentiallly expressed genes in scRNA-seq data
-
 ```{r setup, include=FALSE, echo=FALSE}
 ### Set knitr global options
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
@@ -91,34 +65,75 @@ phase.colors <- c("G1"="#BF6ECA",
 #pie(rep(1, n), col=palette)
 ```
 
-# Load the data
+```{r, echo = FALSE, include = FALSE}
+if (any(is.null(seurat_analysed), class(seurat_analysed) != "Seurat")){
+  seurat_analysed = readRDS(params$anno_save_file)
+}
 
-```{r}
-bassez1<-read_rds(file="~/Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Seurat_Breast_Bassez1_MINIATURE2.rds")
+#### JUST FOR TESTING!!!!
+
+Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
+seurat_analysed<-subset(seurat_analysed, downsample=1000)
+####
 
 ### Chang identity to cell type
-Idents(bassez1)<-bassez1@meta.data$SingleR2
+Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
 ```
 
-# Run PCA analyses
+## 3.1 - PCA analyses
 
-```{r}
+Perform linear dimensional reduction via PCA.
+We use different methods to run diagnostics on the Principal Components (PCs).
+
+### Method 1 - Print the Principal Components (PCs) 
+
+```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Perform linear dimensional reduction via PCA
-bassez1 <- RunPCA(bassez1)
+seurat_analysed <- RunPCA(seurat_analysed)
+```
 
-###----------------------------------------------------------------------------
-### Run diagnostics on PCs
-### Method 1 - Print the PCs
-print(bassez1[["pca"]], dims = 1:15, nfeatures = 5)
+```{r, echo=FALSE, tidy='styler', tidy.opts=list(strict=FALSE)}
+# print(seurat_analysed[["pca"]], dims = 1:15, nfeatures = 5)
+
+aux = seurat_analysed[["pca"]][,1:15] %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column(var = "gene") %>%
+  tidyr::pivot_longer(cols = !gene, names_to = "PCs", values_to = "values") %>%
+  dplyr::group_by(PCs) %>%
+  dplyr::arrange(values, .by_group = TRUE) %>%
+  dplyr::top_n(-5)
+
+features_pca = seurat_analysed[["pca"]][,1:15] %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column(var = "gene") %>%
+  tidyr::pivot_longer(cols = !gene, names_to = "PCs", values_to = "values") %>%
+  dplyr::group_by(PCs) %>%
+  dplyr::arrange(desc(values), .by_group = TRUE) %>%
+  dplyr::top_n(5) %>%
+  dplyr::bind_rows(., aux) %>%
+  dplyr::mutate(direction = dplyr::if_else(values < 0, "Negative", "Positive")) %>%
+  tidyr::pivot_wider(id_cols = PCs, names_from = "direction", values_from = "gene")
+
+features_pca %>%
+  dplyr::mutate(PCs = factor(gsub("_", " ", PCs), levels = paste0("PC ", 1:15))) %>%
+  dplyr::arrange(PCs) %>%
+  tibble::column_to_rownames(var = "PCs") %>%
+  knitr::kable(.,
+               caption = "Top 5 features in the first 15 Principal Components")
+```
 
 ### Method 2 - VizDimLoadings
-### This plot is to identify genes contributing to desired PCAs
-VizDimLoadings(bassez1, 
+This plot is to identify genes contributing to desired PCAs
+
+```{r, tidy='styler', tidy.opts=list(strict=FALSE), fig.cap="Identify genes contributing to desired PCAs"}
+VizDimLoadings(seurat_analysed, 
                dims = 1:4, 
                reduction = "pca")
+```
 
 ### Method 3 - Dimplot
-DimPlot(bassez1, reduction = "pca",
+```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
+DimPlot(seurat_analysed, reduction = "pca",
         cols = ct.colors,
         pt.size = 0.5) +
   ggtitle("PCA of cell types defined by SingleR") +
@@ -127,12 +142,12 @@ DimPlot(bassez1, reduction = "pca",
   xlab("PC 1")+
   theme(axis.title.x = element_text())
 
-FeaturePlot(bassez1,  
+FeaturePlot(seurat_analysed,  
             reduction='pca', 
             features=c("nFeature_RNA",  "percent.mt"))
 
-Idents(bassez1)<-bassez1@meta.data$Phase
-DimPlot(bassez1, reduction = "pca",
+Idents(seurat_analysed)<-seurat_analysed@meta.data$Phase
+DimPlot(seurat_analysed, reduction = "pca",
         cols = phase.colors,
         pt.size = 0.5) +
   ggtitle("PCA of cells colored by cell cycle phase") +
@@ -141,61 +156,81 @@ DimPlot(bassez1, reduction = "pca",
   xlab("PC 1")+
   theme(axis.title.y = element_text(),
         axis.title.x = element_text())
-Idents(bassez1)<-bassez1@meta.data$SingleR2
-
-### Method 4 - DimHeatmapt allows for easy exploration of the primary sources 
-### of heterogeneity in a dataset, and can be useful when trying to decide which 
-### PCs to include for further downstream analyses
-DimHeatmap(bassez1, dims = 1:15, cells = 500, balanced = TRUE)
-
-### Method 5 - Elbow plot
-### We can observe an ‘elbow’ around PC6-7, , but even PCs up to 12 still maintain a high
-### standard deviation. This is supported by the heatmaps. Suggesting that the majority of 
-### true signal is captured in the first 12 PCs
-ElbowPlot(bassez1)
-
-### Identify most influential PCs
-PCs<-which(bassez1@reductions$pca@stdev>=3)
+Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
 ```
 
-# Plot uMAP and tSNE
-NOTES: It is encouraged users to repeat downstream analyses with a different number of 
-PCs (10, 15, or even 50!). As the results often do not differ dramatically. It is also 
-advised users to err on the higher side when choosing this parameter. Because 
-downstream analyses with only 5 PCs do significantly and adversely affect results.
+### Method 4 - DimHeatmapt 
 
-Regarding clustering methods, SeuratV3 embeds cells in a graph structure - for example a 
+This method allows for easy exploration of the primary sources of heterogeneity in a dataset, 
+and can be useful when trying to decide which PCs to include for further downstream analyses.
+
+```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
+DimHeatmap(seurat_analysed, dims = 1:15, cells = 500, balanced = TRUE)
+```
+
+### Method 5 - Elbow plot
+
+We look for an ‘elbow’ in the plot (usually around PC6-7).
+However, even PCs up to usually 12 still maintain a high standard deviation.
+
+This is supported by the heatmaps, suggesting that the majority of 
+true signal is captured in the first 12 PCs.
+
+> **_NOTE:_** Check this assumption for each analysis specifically.
+
+```{r, fig.cap="Identify most influential PCs", tidy='styler', tidy.opts=list(strict=FALSE)}
+ElbowPlot(seurat_analysed)
+
+PCs<-which(seurat_analysed@reductions$pca@stdev>=params$dex_stdev)
+```
+
+## 3.2 - uMAP and tSNE visualisations
+
+***
+**NOTE** 
+
+It is encouraged users to repeat downstream analyses with a different number of 
+PCs (10, 15, or even 50!). As the results often do not differ dramatically.
+It is also advised users to err on the higher side when choosing this parameter. 
+Because downstream analyses with only 5 PCs do significantly and adversely affect results.
+
+***
+
+Regarding clustering methods, `SeuratV3` embeds cells in a graph structure - for example a 
 K-nearest neighbor (KNN) graph, with edges drawn between cells with similar feature 
 expression patterns, and then attempts to partition this graph into highly interconnected 
-‘quasi-cliques’ or ‘communities’.
+_‘quasi-cliques’_ or _‘communities’_.
 
 We first construct a KNN graph based on the euclidean distance in PCA space, and 
 refine the edge weights between any two cells based on the shared overlap in their 
-local neighborhoods (Jaccard similarity). This step is performed using the FindNeighbors()
+local neighborhoods (Jaccard similarity). 
+This step is performed using the `FindNeighbors()`
 
 To cluster the cells, we next apply modularity optimization techniques such as the 
-Louvain algorithm (default) or SLM [SLM, Blondel et al., Journal of Statistical 
-Mechanics], to iteratively group cells together, with the goal of optimizing the 
-standard modularity function. The FindClusters() function implements this procedure.
+**Louvain algorithm** (default) or **SLM** [SLM, Blondel et al., Journal of Statistical 
+Mechanics](https://iopscience.iop.org/article/10.1088/1742-5468/2008/10/P10008), 
+to iteratively group cells together, with the goal of optimizing the 
+standard modularity function. 
+The `FindClusters()` function implements this procedure.
 Optimal resolution for 3K cells often ranges from 0.4 to 1.2 and increases the larger
 the dataset.
 
-```{r}
+```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
 ###--------------------THIS SECTION CAN BE SKIPPED----------------------------
 ###-----------UNLESS IT HASN'T BEEN DONE, THEN DON'T SKIP IT, DO IT-----------
 
 ### Identify neighbors
-bassez1 <- FindNeighbors(bassez1, dims = 1:length(PCs))
+seurat_analysed <- FindNeighbors(seurat_analysed, dims = 1:length(PCs))
 
 ### Identify clusters
-bassez1 <- FindClusters(bassez1)
+seurat_analysed <- FindClusters(seurat_analysed)
 
 ### Run uMAP and tSNE
-bassez1 <- RunUMAP(bassez1, dims = 1:length(PCs))
-bassez1 <- RunTSNE(bassez1, dims = 1:length(PCs))
+seurat_analysed <- RunUMAP(seurat_analysed, dims = 1:length(PCs))
+seurat_analysed <- RunTSNE(seurat_analysed, dims = 1:length(PCs))
 
 ### Plot uMAP 
-DimPlot(bassez1, reduction = "umap",
+DimPlot(seurat_analysed, reduction = "umap",
         group.by = "SingleR2",
         cols = ct.colors,
 #        shuffle = TRUE,
@@ -210,7 +245,7 @@ DimPlot(bassez1, reduction = "umap",
         axis.title.x = element_text())
 
 ### Color by cell cycle phase
-DimPlot(bassez1, reduction = "umap",
+DimPlot(seurat_analysed, reduction = "umap",
         group.by = "Phase",
         cols = phase.colors,
 #        shuffle = TRUE,
@@ -225,67 +260,74 @@ DimPlot(bassez1, reduction = "umap",
         axis.title.x = element_text())
 ```
 
+## 3.3 Differential expression per cluster
 
-# Perform differential expression for each cluster
 Seurat can help you find markers that define clusters via differential expression. 
 By default, it identifies positive and negative markers of a single cluster (specified 
-in ident.1), compared to all other cells. FindAllMarkers() automates this process for all 
-clusters, but you can also test groups of clusters vs. each other, or against all cells.
+in `ident.1`), compared to all other cells. 
+`FindAllMarkers()` automates this process for all clusters, 
+but you can also test groups of clusters vs. each other, or against all cells.
 
-The min.pct argument requires a feature to be detected at a minimum percentage in either 
-of the two groups of cells, and the thresh.test argument requires a feature to be 
-differentially expressed (on average) by some amount between the two groups. You can set 
-both of these to 0, but with a dramatic increase in time - since this will test a large 
-number of features that are unlikely to be highly discriminatory. As another option to 
-speed up these computations, max.cells.per.ident can be set. This will downsample each 
-identity class to have no more cells than whatever this is set to. While there is 
-generally going to be a loss in power, the speed increases can be significant and the 
+The `min.pct` argument requires a feature to be detected at a minimum percentage in either 
+of the two groups of cells, 
+and the `thresh.test` argument requires a feature to be 
+differentially expressed (on average) by some amount between the two groups. 
+You can set both of these to 0, 
+but with a dramatic increase in time - since this will test a large 
+number of features that are unlikely to be highly discriminatory.
+Currently, the values for `min.pct` and `thresh.test` are
+`r params$dex_min_pct` and `r params$dex_logfc_threshold`, respectivelly.
+
+As another option to speed up these computations, 
+`max.cells.per.ident` can be set. 
+This will downsample each identity class to have no more cells than whatever this is set to. 
+While there is generally going to be a loss in power, 
+the speed increases can be significant and the 
 most highly differentially expressed features will likely still rise to the top.
 
-```{r}
+```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Find markers for every cluster compared to all remaining cells
-Idents(bassez1)<-bassez1@meta.data$SingleR2
-DE_bassez1 <- FindAllMarkers(bassez1, 
+Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
+DE_seurat_analysed <- FindAllMarkers(seurat_analysed, 
 #                             only.pos = TRUE, ### If you want only positive, use this.
-                             min.pct = 0.25, 
-                             logfc.threshold = 0.0)
+                             min.pct = params$dex_min_pct, 
+                             logfc.threshold = params$dex_logfc_threshold)
 
-```
+sigs <- DE_seurat_analysed[which(DE_seurat_analysed$p_val_adj< 0.1,#params$dex_p_val_adj &
+                           DE_seurat_analysed$pct.1>0.25,#params$dex_min_pct &
+                           DE_seurat_analysed$avg_log2FC>0.0),]#params$dex_logfc_threshold),]
 
-# Identify significantly DE genes
-
-```{r, fig.height=10, fig.width=10}
-
-sigs <- DE_bassez1[which(DE_bassez1$p_val_adj<0.1 &
-                           DE_bassez1$pct.1>0.25 &
-                           DE_bassez1$avg_log2FC>0.0),]
+top5 <- sigs %>%
+    group_by(cluster) %>%
+    top_n(n = 5, wt = avg_log2FC)
 
 ### List the top 2 highest expressed genes for each cell subtype
 sigs %>%
     group_by(cluster) %>%
-    slice_max(n = 5, order_by = avg_log2FC)
-
-sigs %>%
-    group_by(cluster) %>%
-    top_n(n = 5, wt = avg_log2FC) -> top5
+    slice_max(n = 5, order_by = avg_log2FC) %>%
+    dplyr::select(gene, cluster, pct.1, pct.2, p_val, p_val_adj, avg_log2FC) %>%
+    dplyr::rename(Pvalue = p_val, `Adjusted Pvalue` = p_val_adj, `log2Fc avg` = avg_log2FC) %>%
+    knitr::kable(.,
+               caption = " Identify significantly DE genes. Selection of the 5 highest expressed genes for each cell subtype.",
+               digits = 2,#c(0,0,2,2,6,6,2),
+               format.args = list(scientific = TRUE)) %>% 
+    kableExtra::scroll_box(width = "800px", height = "400px")
 
 ```
 
-# Plot heatmap of top 5 DEGs
-Doheatmap() is no bueno, so using complexheatmap
 
-```{r, fig.height=10, fig.width=12}
+```{r, fig.height=10, fig.width=12, fig.cap="Heatmap of top 5 Differentially Expressed Genes", tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Subset the top 5 genes
-mat<-as.matrix(bassez1@assays[["RNA"]]@data)
+mat<-as.matrix(seurat_analysed@assays[["RNA"]]@data)
 mat<-mat[top5$gene,]
 
 ### Create an object to establish column annotations
-ha <- HeatmapAnnotation(Celltype=bassez1@meta.data$SingleR2,
+ha <- HeatmapAnnotation(Celltype=seurat_analysed@meta.data$SingleR2,
                         col=list(Celltype=ct.colors),
                         border=TRUE)
 
 ### Add row annotation colors
-index<-match(top5$gene, DE_bassez1$gene)
+index<-match(top5$gene, DE_seurat_analysed$gene)
 ra <- rowAnnotation(`Fold-change (FC)`=anno_barplot(top5$avg_log2FC, 
                                                add_numbers=TRUE),
                     `FC cell reference` = top5$cluster,
@@ -298,7 +340,7 @@ Heatmap(mat,
         show_column_names = F, 
         col=cols, 
         top_annotation = ha, 
-        column_split = bassez1@meta.data$SingleR2, 
+        column_split = seurat_analysed@meta.data$SingleR2, 
         border = T, 
         cluster_column_slices = FALSE,
         cluster_row_slices =  FALSE,
@@ -313,12 +355,10 @@ Heatmap(mat,
 )
 ```
 
-# Write files 
+## 3.4 - Write to file
+The annotation is done, the file is save on **_`r params$dex_save_file`_**.
 
-```{r}
-### DEGs 
-write.csv(sigs, file="~/Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/DEGs/DE_bassez1_MINATURE2.csv")
-
-### Seurat
-#write_rds(bassez1, file="~/Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Seurat_Breast_Bassez1_MINIATURE2.rds")
+```{r, include=FALSE}
+### All the QC is done, so now we may write to file
+write_rds(seurat_analysed, file=params$dex_save_file)
 ```
