@@ -75,14 +75,9 @@ if (any(is.null(seurat_analysed), class(seurat_analysed) != "Seurat")){
   seurat_analysed = readRDS(params$anno_save_file)
 }
 
-#### JUST FOR TESTING!!!!
-
-Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
-seurat_analysed<-subset(seurat_analysed, downsample=1000)
-####
-
 ### Chang identity to cell type
 Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
+
 ```
 
 ## 3.1 - PCA analyses
@@ -315,11 +310,12 @@ sigs %>%
     group_by(cluster) %>%
     slice_max(n = 5, order_by = avg_log2FC) %>%
     dplyr::select(gene, cluster, pct.1, pct.2, p_val, p_val_adj, avg_log2FC) %>%
-    dplyr::rename(Pvalue = p_val, `Adjusted Pvalue` = p_val_adj, `log2Fc avg` = avg_log2FC) %>%
+    dplyr::mutate(p_val = as.character(signif(p_val, 2))) %>%
+    dplyr::mutate(p_val_adj = as.character(signif(p_val_adj, 2))) %>%
+    dplyr::rename(Pvalue = p_val, `Adjusted Pvalue` = p_val_adj, `log2FC avg` = avg_log2FC) %>%
     knitr::kable(.,
                caption = " Identify significantly DE genes. Selection of the 5 highest expressed genes for each cell subtype.",
-               digits = 2,#c(0,0,2,2,6,6,2),
-               format.args = list(scientific = TRUE)) %>% 
+               digits = 2) %>%
     kableExtra::scroll_box(width = "800px", height = "400px")
 
 ```
