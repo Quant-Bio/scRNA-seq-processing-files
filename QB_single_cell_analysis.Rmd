@@ -22,6 +22,7 @@ params:
   qcs_indent_var: "orig.ident"
   qcs_std_nFeature_RNA: 200
   qcs_vars_regress: ["nCount_RNA", "percent.mt"]
+  qcs_ncells: 1
   ANNO: true
   anno_cutoff: 50
   anno_save_file: "Seurat_Breast_Bassez1_MINIATURE2.rds"

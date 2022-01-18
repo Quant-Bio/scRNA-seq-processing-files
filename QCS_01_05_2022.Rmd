@@ -71,13 +71,13 @@ VlnPlot(seurat_analysed,
 
 There may be genes with zero counts across all cells too. 
 These reduce the average expression for a cell and should be removed, as well. 
-For our data we choose to keep only genes which are expressed in **10 or more cells**.
+For our data we choose to keep only genes which are expressed in **`r params$qcs_ncells` or more cells**.
 
 ```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Create the new seurat object
 seurat_analysed <- CreateSeuratObject(seurat_analysed@assays$RNA@counts, 
                                       meta.data = seurat_analysed@meta.data, 
-                                      min.cells = 1, min.features = 1)
+                                      min.cells = params$qcs_ncells, min.features = 1)
 ```
 
 ## 1.2 - Standardize
