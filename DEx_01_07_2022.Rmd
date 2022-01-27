@@ -293,7 +293,7 @@ most highly differentially expressed features will likely still rise to the top.
 ### Find markers for every cluster compared to all remaining cells
 Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
 DE_seurat_analysed <- FindAllMarkers(seurat_analysed, 
-#                             only.pos = TRUE, ### If you want only positive, use this.
+                            only.pos = params$dex_only_post, 
                              min.pct = params$dex_min_pct, 
                              logfc.threshold = params$dex_logfc_threshold)
 

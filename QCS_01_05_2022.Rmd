@@ -77,7 +77,8 @@ For our data we choose to keep only genes which are expressed in **`r params$qcs
 ### Create the new seurat object
 seurat_analysed <- CreateSeuratObject(seurat_analysed@assays$RNA@counts, 
                                       meta.data = seurat_analysed@meta.data, 
-                                      min.cells = params$qcs_ncells, min.features = 1)
+                                      min.cells = params$qcs_ncells, 
+                                      min.features = params$qcs_nfeatures)
 ```
 
 ## 1.2 - Standardize
