@@ -35,14 +35,18 @@ if (any(is.null(seurat_analysed), class(seurat_analysed) != "Seurat")){
 ```
 
 ## 2.1 - Annotate with singleR
-Reference data are load with Ensembl annotations.
-`ensembl = F` indicates to not convert row names to ensembl IDs.
 
-> **_NOTE:_** This will take an eternity or crash R. 
-Don't repeat if you already have the labels.
+```{r, include=FALSE}
+anno_sigleR_text = "Reference data are load with Ensembl annotations.
+`ensembl = F` indicates to not convert row names to ensembl IDs."
 
+if(!as.logical(params$anno_sigleR)){
+  anno_sigleR_text = "> **_NOTE:_** The file has been already labeled by QuantBio with SingleR, and QC checks have been performed on the annotations. This step has been skipped."
+}
+```
+`r anno_sigleR_text`
 
-```{r anno_singleR, tidy='styler', tidy.opts=list(strict=FALSE)}
+```{r anno_singleR, tidy='styler', tidy.opts=list(strict=FALSE), eval = params$anno_sigleR}
 ref.data <- HumanPrimaryCellAtlasData(ensembl=FALSE) 
 
 ### Assign the cell types. For this step, I'm parellelizing it with 
@@ -118,7 +122,7 @@ plotDeltaDistribution(keep,
   xlab("Cell labels")
 ```
 
-## 2.3 - Pruned ambiguous cells
+## 2.3 - Prune ambiguous cells
 
 ```{r anno_pruned, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Prune the cells in the subsetted seurat objects
@@ -145,7 +149,7 @@ Also, if the cells are B or T, cell subtypes merge with B and T cells, respectiv
 ```{r merge_cell_types, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### So not to lose the low count b cell subtypes, collapse those first
 seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$SingleR,
-                                           B_cell=c("Pro-B_cell_CD34+","Pre-B_cell_CD34-",
+                                           B_cell= params$anno_bc c("Pro-B_cell_CD34+","Pre-B_cell_CD34-",
                                                     "B_cell"))
 
 freq<-data.frame(tabyl(seurat_analysed@meta.data$SingleR2, sort = TRUE))
