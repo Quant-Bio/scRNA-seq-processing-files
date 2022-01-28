@@ -63,8 +63,8 @@ post_Vplot = VlnPlot(seurat_analysed,
         features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), 
         ncol = 3) 
 
-cowplot::plot_grid(pre_Vplot, post_Vplot, nrow = 1, 
-                   ncol = 2, labels = c("a) Prefilter", "b) Filtered"))
+cowplot::plot_grid(pre_Vplot, post_Vplot, nrow = 2, 
+                   ncol = 1, labels = c("a) Prefilter", "b) Filtered"))
 ```
 
 ### Filter low count genes
