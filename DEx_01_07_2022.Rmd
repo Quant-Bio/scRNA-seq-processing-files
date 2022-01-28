@@ -178,20 +178,23 @@ However, even PCs up to usually 12 still maintain a high standard deviation.
 This is supported by the heatmaps, suggesting that the majority of 
 true signal is captured in the first 12 PCs.
 
-> **_NOTE:_** Check this assumption for each analysis specifically.
-
 ```{r, fig.cap="Identify most influential PCs", tidy='styler', tidy.opts=list(strict=FALSE)}
 pca = seurat_analysed@reductions$pca
 eigValues = (pca@stdev)^2 ## EigenValues
 varExplained=eigValues/sum(eigValues)
 
-# PCs<-which(seurat_analysed@reductions$pca@stdev>=params$dex_stdev)
-PCs<-sum(ifelse(cumsum(varExplained)<=0.8, 1, 0))
+PCs<-sum(ifelse(cumsum(varExplained)<=params$dex_variance_explained, 1, 0))
 
-ElbowPlot(seurat_analysed, ndims = 30) +
+if (PCs < 5){PCs = 5}
+
+ndims = ifelse(PCs >= 20, PCs + 1, 30)
+
+ElbowPlot(seurat_analysed, ndims = ndims) +
   ggplot2::geom_vline(xintercept = PCs, linetype='dashed', color='blue')
 
 ```
+
+We use **`r PCs` PCs** that capture the **`r params$dex_variance_explained*100`% of the variance**.
 
 ## 3.2 - uMAP and tSNE visualisations
 
@@ -229,15 +232,15 @@ The option selected for this analysis is **`r cluster_option_readable`**.
 ```{r, tidy='styler', tidy.opts=list(strict=FALSE), comment= ""}
 
 ### Identify neighbors
-seurat_analysed <- FindNeighbors(seurat_analysed, dims = 1:length(PCs))
+seurat_analysed <- FindNeighbors(seurat_analysed, dims = 1:PCs)
 
 ### Identify clusters
 seurat_analysed <- FindClusters(seurat_analysed, 
                                 algorithm = params$dex_cluster_algorithm)
 
 ### Run uMAP and tSNE
-seurat_analysed <- RunUMAP(seurat_analysed, dims = 1:length(PCs))
-seurat_analysed <- RunTSNE(seurat_analysed, dims = 1:length(PCs))
+seurat_analysed <- RunUMAP(seurat_analysed, dims = 1:PCs)
+seurat_analysed <- RunTSNE(seurat_analysed, dims = 1:PCs)
 
 ### Plot uMAP 
 DimPlot(seurat_analysed, reduction = "umap",
