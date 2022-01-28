@@ -1,29 +1,3 @@
----
-title: "Quality control and standardization file (QCStanAnn)"
-author: "QuantBio - VMP"
-date: 01-05-2022
-output:
-  html_document:
-    toc: yes
-    toc_float: yes
-    number_sections: yes
-  pdf_document:
-    toc: yes
-    toc_depth: 4
----
-
-ROSA - things to parameterize include:
-  [1] Maybe the input directory, since all seurat objects are coming from 
-      differnt directories?
-  [2] If possiblye line 47 where I change the Idents. Not all the seurat objects
-      have the same "orig.ident" column that I'm calling
-  [3] Line 79, where we set the lower bound of nFeature_RNA to 200.
-  [4] Line 165, where we select which variables to regress out
-
-# Purpose
-This is a general script to perform quality control and standardization
-of single cell RNA-seq datasets.
-
 ```{r setup, include=FALSE, echo=FALSE}
 ### Set knitr global options
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
@@ -32,39 +6,42 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 library(data.table)
 library(Seurat)
 library(readr)
+library(cowplot)
 ```
 
-# Load the data in
-Make sure this is the unedited seurat file.
+> **_NOTE:_**  Make sure the data is the unedited seurat file.
 
-```{r}
+```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### First the seurat obect
-bassez1 <- readRDS(file="~/Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Downloaded_unedited_data/Seurat_Breast_Bassez1_MINIATURE.rds")
+seurat_analysed <- readRDS(file=params$dir_seurat)
 
 ### Change ident to original idents
-Idents(bassez1)<-bassez1@meta.data$orig.ident
+Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$qcs_indent_var]
 ```
 
-## QC - Remove low quality cells 
+## 1.1 - Quality Control
+### Remove low quality cells 
 
-## Step 1 - remove dead cells, doublets, and cells with low molecule counts
+Remove dead cells, doublets, and cells with low molecule counts
 Examine the following 3 parameters:
-1) nFeature_RNA is the number of genes detected in each cell. 
-2) nCount_RNA is the total number of molecules detected within a cell
-3) percent.mt is the percent of features that are mitochondrial genes
 
-NOTE: There are several things to consider. For one, a much higher number
-of gene counts or molecule counts may indicate that there are doublets, especially,
-in droplet based scRNA-seq data like 10X. This however is smart-seq, which is not
-droplet based. However, the caveat with smartseq is that it tends to capture a higher 
-number of mitochondrial genes (i.e. dead cells).
+1. `nFeature_RNA` is the number of genes detected in each cell. 
+2. `nCount_RNA` is the total number of molecules detected within a cell
+3. `percent.mt` is the percent of features that are mitochondrial genes
 
-```{r}
+***
+**NOTE** 
+
+There are several things to consider. For one, a much higher number of gene counts of molecule counts may indicate the presence of doublets, especially for droplet-based scRNA-seq like 10X. In addition, high mitochondrial gene percentages may indicate dead cells, which is common in plate-based scRNA-seq like smart-seq.
+
+***
+
+```{r, tidy='styler', tidy.opts=list(strict=FALSE), fig.align='center'}
 ### add mito.gene % in meta.data
-bassez1[["percent.mt"]] <- PercentageFeatureSet(object = bassez1, pattern = "^MT|^mt")
+seurat_analysed[["percent.mt"]] <- PercentageFeatureSet(object = seurat_analysed, pattern = "^MT|^mt")
 
 ### Plot the three parameters mentioned above
-VlnPlot(bassez1, 
+pre_Vplot = VlnPlot(seurat_analysed, 
         pt.size = 0,
         features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), 
         ncol = 3) 
@@ -73,116 +50,133 @@ VlnPlot(bassez1,
 ### nFeature_RNA metric > 200-3*MAD(nFeature_RNA) and < median(nFeature_RNA)+3*MAD(nFeature_RNA)
 ### nCount_RNA < median(nCountRNA)+3*MAD(nCountRNA)
 ### percent.mt < median(percent.mt)+3*MAD(percent.mt)
-bassez1 <- subset(x = bassez1, 
-                  subset = nFeature_RNA > max(200, median(bassez1@meta.data$nFeature_RNA, na.rm = TRUE) - 3*mad(bassez1@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE))
-                  & nFeature_RNA < median(bassez1@meta.data$nFeature_RNA, na.rm = TRUE) + 3*mad(bassez1@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE)
-                  & nCount_RNA < median(bassez1@meta.data$nCount_RNA, na.rm = TRUE) + 3*mad(bassez1@meta.data$nCount_RNA, constant = 1.4826, na.rm = TRUE)
-                  & percent.mt < median(bassez1@meta.data$percent.mt, na.rm = TRUE) + 3*mad(bassez1@meta.data$percent.mt, constant = 1.4826, na.rm = TRUE)
+seurat_analysed <- subset(x = seurat_analysed, 
+                  subset = nFeature_RNA > max(params$qcs_std_nFeature_RNA, median(seurat_analysed@meta.data$nFeature_RNA, na.rm = TRUE) - 3*mad(seurat_analysed@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE))
+                  & nFeature_RNA < median(seurat_analysed@meta.data$nFeature_RNA, na.rm = TRUE) + 3*mad(seurat_analysed@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE)
+                  & nCount_RNA < median(seurat_analysed@meta.data$nCount_RNA, na.rm = TRUE) + 3*mad(seurat_analysed@meta.data$nCount_RNA, constant = 1.4826, na.rm = TRUE)
+                  & percent.mt < median(seurat_analysed@meta.data$percent.mt, na.rm = TRUE) + 3*mad(seurat_analysed@meta.data$percent.mt, constant = 1.4826, na.rm = TRUE)
                   )
 
 ### re-plot
-VlnPlot(bassez1, 
+post_Vplot = VlnPlot(seurat_analysed, 
         pt.size=0,
         features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), 
         ncol = 3) 
+
+cowplot::plot_grid(pre_Vplot, post_Vplot, nrow = 2, 
+                   ncol = 1, labels = c("a) Prefilter", "b) Filtered"))
 ```
 
-## QC - Filter low count genes
+### Filter low count genes
 
-There may be genes with zero counts across all cells too. These reduce the average 
-expression for a cell and should be removed, as well. For our data we choose to keep 
-only genes which are expressed in 10 or more cells.
+There may be genes with zero counts across all cells too. 
+These reduce the average expression for a cell and should be removed, as well. 
+For our data we choose to keep only genes which are expressed in **`r params$qcs_ncells` or more cells**.
 
-```{r}
+```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Create the new seurat object
-bassez1 <- CreateSeuratObject(bassez1@assays$RNA@counts, meta.data = bassez1@meta.data,
-                              min.cells = 1, min.features = 1)
+seurat_analysed <- CreateSeuratObject(seurat_analysed@assays$RNA@counts, 
+                                      meta.data = seurat_analysed@meta.data, 
+                                      min.cells = params$qcs_ncells, 
+                                      min.features = params$qcs_nfeatures)
 ```
 
-# 2 - Standardize - Normalize the data
+## 1.2 - Standardize
 
-For data normalization, we use NormalizeDatas() that normalizes
-the feature expression measurements for each cell by the total expression, multiplies 
-this by a scale factor (10,000 by default), and log-transforms the result. Normalized 
-values are stored in [["RNA"]]@data
+### Normalize the data
 
-```{r}
-bassez1 <- NormalizeData(bassez1, 
+For data normalization, we use `NormalizeDatas()` that normalizes
+the feature expression measurements for each cell by the total expression,
+multiplies this by a scale factor (10,000 by default), 
+and log-transforms the result. 
+Normalized values are stored in **[["RNA"]]@data**.
+
+```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
+seurat_analysed <- NormalizeData(seurat_analysed, 
                          normalization.method = "LogNormalize", 
                          scale.factor = 10000)
 ```
 
-## Standardize - Regress out confounding variables
+### Regress out confounding variables
 
 Calculate a subset of features that exhibit high cell-to-cell variation 
 in the dataset (i.e, they are highly expressed in some cells, and lowly 
 expressed in others). These genes help to highlight biological signal in 
 single-cell datasets.
 
-By default, FindVariableFeatures returns 2,000 features per dataset, but can 
-be changed to any number. These may be used in downstream analysis, like PCA.
+By default, `FindVariableFeatures` returns 2,000 features per dataset, but can 
+be changed to any number. 
+These may be used in downstream analysis, like PCA.
 
-Note: This will be done for each tissue type individually, so make sure to run
+***
+**NOTE** 
+
+This will be done for each tissue type individually, so make sure to run
 through them one at a time.
 
-```{r}
+***
+
+```{r, tidy='styler', tidy.opts=list(strict=FALSE), fig.align='center', fig.cap="Variable features with labels. Identiy the 10 most highly variable genes."}
 ### Find the top 2000 most variable genes for PCA analysis
-bassez1 <- FindVariableFeatures(object=bassez1, selection.method = "vst", 
+seurat_analysed <- FindVariableFeatures(object=seurat_analysed, selection.method = "vst", 
                             nfeatures = 2000)
 
 ### Plot variable features with labels
 ### Identify the 10 most highly variable genes
-top10 <- head(VariableFeatures(bassez1), 10)
-labels <- VariableFeaturePlot(bassez1)
+top10 <- head(VariableFeatures(seurat_analysed), 10)
+labels <- VariableFeaturePlot(seurat_analysed)
 LabelPoints(plot = labels, points = top10, repel = TRUE)
 ```
 
-## Standardize - Scale the data 
+### Scale the data 
 
 Next, we apply a linear transformation (‘scaling’) that is a standard 
 pre-processing step prior to dimensional reduction techniques like PCA. 
-The ScaleData() function:
+The `ScaleData()` function:
 
-  [I] Shifts the expression of each gene, so that the mean expression across 
-  cells is 0
-  [II] Scales the expression of each gene, so that the variance across cells 
-  is 1
-    This step gives equal weight in downstream analyses, so that 
-    highly-expressed genes do not dominate
-  [III] The results of this are stored in [["RNA"]]@scale.data
+1. Shifts the expression of each gene, so that the mean expression across cells is 0
+2. Scales the expression of each gene, so that the variance across cells is 1.
+This step gives equal weight in downstream analyses, 
+so that highly-expressed genes do not dominate
+3. The results of this are stored in **[["RNA"]]@scale.data**
   
-Note 1: By default ScaleData() will only scale the identified 2,000 genes unless
-specified using the "features = all.genes" argument.
+***
+**NOTE** 
 
-```{r}
+By default `ScaleData()` will only scale the identified 2,000 genes unless specified using the `"features = all.genes"` argument.
+
+***
+
+```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Now scale
-#all.genes <- rownames(x = bassez1)
-bassez1 <- ScaleData(object = bassez1, 
+#all.genes <- rownames(x = seurat_analysed)
+seurat_analysed <- ScaleData(object = seurat_analysed, 
 #                     features = all.genes, 
                      verbose = FALSE,
-                     vars.to.regress = c("nCount_RNA", "percent.mt"))
+                     vars.to.regress = unlist(strsplit(params$qcs_vars_regress, 
+                                                       split = ",", fixed = T)))
 ```
 
-# Identify the cell cycle phase for each cell
-Score the cell cycle phase of each cell This is done by calculating the G2M 
-marker score with the CellCycleScoring() function provided in the seurat package
+## 1.3 - Identify the cell cycle phase for each cell
+Score the cell cycle phase of each cell.
+This is done by calculating the G2M marker score with the `CellCycleScoring()` function provided in the _seurat package_.
 
 ```{r}
 ### [1] Create G2M marker gene list (i.e. genes associated with the G2M phase of the 
 ### cell cycle using Seurat's built-in cc.genes (cell cycle) genes list
 g2m.genes <- cc.genes$g2m.genes
-g2m <- rownames(bassez1)[rownames(bassez1) %in% g2m.genes]
+g2m <- rownames(seurat_analysed)[rownames(seurat_analysed) %in% g2m.genes]
 
 ### [2] Calculate G2M marker module score.
-bassez1 <- CellCycleScoring(bassez1, 
+seurat_analysed <- CellCycleScoring(seurat_analysed, 
                             s.features = cc.genes$s.genes, ### Genes associated with s-phase
                             g2m.features = g2m.genes, ### Genes associated with G2M phase
                             set.ident = TRUE)
 ```
 
-# Write to file
-All the QC is done, so save file and move to annotation step
+## 1.4 - Write to file
+The QC is done, the file is save on **_`r params$qcs_save_file`_**.
 
-```{r}
-write_rds(bassez1, file="~/Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Seurat_Breast_Bassez1.rds")
+```{r, include=FALSE}
+write_rds(seurat_analysed, file=params$qcs_save_file)
 ```
