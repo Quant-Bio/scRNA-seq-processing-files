@@ -29,7 +29,7 @@ theme_sara <- function() {
 ```
 
 ```{r, echo = FALSE, include = FALSE}
-if (any(is.null(seurat_analysed), class(seurat_analysed) != "Seurat")){
+if(!exists("seurat_analysed")){
   seurat_analysed = readRDS(params$qcs_save_file)
 }
 ```
@@ -137,20 +137,26 @@ seurat_analysed@meta.data$SingleR <- factor(seurat_analysed@meta.data$SingleR)
 
 Merge ambiguous cell types into:
 
-(1) fibroblasts 
-(2) macrophages
+(1) Fibroblasts 
+(2) Macrophages
 (3) B_cells
-(4) others
+(4) Others
 
-If the cells are below `r params$anno_cutoff`, they are merge to "other". 
+If the cells are below **`r params$anno_cutoff`**, they are merge to "other". 
+
+***
+**NOTE:**
+
 Neurons are also added to this group because neurons aren't an anticipated cell type. 
-Also, if the cells are B or T, cell subtypes merge with B and T cells, respectively. 
+Also, if the cells are B or T, cell subtypes merge with B and T cells, respectively.
+
+***
 
 ```{r merge_cell_types, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### So not to lose the low count b cell subtypes, collapse those first
 seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$SingleR,
-                                           B_cell= params$anno_bc c("Pro-B_cell_CD34+","Pre-B_cell_CD34-",
-                                                    "B_cell"))
+                                           B_cell = params$anno_BCell,
+                                           HSC = params$anno_HCS)
 
 freq<-data.frame(tabyl(seurat_analysed@meta.data$SingleR2, sort = TRUE))
 colnames(freq)<-c("cells","n","proportion")
