@@ -181,9 +181,16 @@ true signal is captured in the first 12 PCs.
 > **_NOTE:_** Check this assumption for each analysis specifically.
 
 ```{r, fig.cap="Identify most influential PCs", tidy='styler', tidy.opts=list(strict=FALSE)}
-ElbowPlot(seurat_analysed)
+pca = seurat_analysed@reductions$pca
+eigValues = (pca@stdev)^2 ## EigenValues
+varExplained=eigValues/sum(eigValues)
 
-PCs<-which(seurat_analysed@reductions$pca@stdev>=params$dex_stdev)
+# PCs<-which(seurat_analysed@reductions$pca@stdev>=params$dex_stdev)
+PCs<-sum(ifelse(cumsum(varExplained)<=0.8, 1, 0))
+
+ElbowPlot(seurat_analysed, ndims = 30) +
+  ggplot2::geom_vline(xintercept = PCs, linetype='dashed', color='blue')
+
 ```
 
 ## 3.2 - uMAP and tSNE visualisations
@@ -220,8 +227,6 @@ the dataset.
 The option selected for this analysis is **`r cluster_option_readable`**.
 
 ```{r, tidy='styler', tidy.opts=list(strict=FALSE), comment= ""}
-###--------------------THIS SECTION CAN BE SKIPPED----------------------------
-###-----------UNLESS IT HASN'T BEEN DONE, THEN DON'T SKIP IT, DO IT-----------
 
 ### Identify neighbors
 seurat_analysed <- FindNeighbors(seurat_analysed, dims = 1:length(PCs))
@@ -306,7 +311,7 @@ top5 <- sigs %>%
     group_by(cluster) %>%
     top_n(n = 5, wt = avg_log2FC)
 
-### List the top 2 highest expressed genes for each cell subtype
+### List the top 5 highest expressed genes for each cell subtype
 sigs %>%
     group_by(cluster) %>%
     slice_max(n = 5, order_by = avg_log2FC) %>%
