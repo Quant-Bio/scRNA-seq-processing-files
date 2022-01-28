@@ -6,6 +6,7 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 library(data.table)
 library(Seurat)
 library(readr)
+library(cowplot)
 ```
 
 > **_NOTE:_**  Make sure the data is the unedited seurat file.
@@ -40,7 +41,7 @@ There are several things to consider. For one, a much higher number of gene coun
 seurat_analysed[["percent.mt"]] <- PercentageFeatureSet(object = seurat_analysed, pattern = "^MT|^mt")
 
 ### Plot the three parameters mentioned above
-VlnPlot(seurat_analysed, 
+pre_Vplot = VlnPlot(seurat_analysed, 
         pt.size = 0,
         features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), 
         ncol = 3) 
@@ -57,10 +58,13 @@ seurat_analysed <- subset(x = seurat_analysed,
                   )
 
 ### re-plot
-VlnPlot(seurat_analysed, 
+post_Vplot = VlnPlot(seurat_analysed, 
         pt.size=0,
         features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), 
         ncol = 3) 
+
+cowplot::plot_grid(pre_Vplot, post_Vplot, nrow = 1, 
+                   ncol = 2, labels = c("a) Prefilter", "b) Filtered"))
 ```
 
 ### Filter low count genes
