@@ -30,12 +30,16 @@ params:
   anno_Bcells: ["Pro-B_cell_CD34+","Pre-B_cell_CD34-","B_cell"]
   anno_HCS: ["HSC_-G-CSF","HSC_CD34+"]
   anno_save_file: "Seurat_Breast_Bassez1_MINIATURE2.rds"
+  anno_fibroblast: ["Fibroblasts", "Chondrocytes",
+  "Smooth_muscle_cells","Tissue_stem_cells"]
+  anno_Others: ["Embryonic_stem_cells","GMP","Hepatocytes","iPS_cells",
+  "Keratinocytes","MSC","Neuroepithelial_cell","Neurons"]
   DEx: true
   dex_ident_cell_type: "SingleR2"
   dex_cluster_algorithm: 1
   dex_save_file: "DE_bassez1_MINATURE2.csv"
-  dex_stdev: 3
   dex_min_pct: 0.25
+  dex_variance_explained: 0.8
   dex_only_post: true ### If you want only positive, use this.
   dex_logfc_threshold: 0.0
   dex_p_val_adj: 0.1
