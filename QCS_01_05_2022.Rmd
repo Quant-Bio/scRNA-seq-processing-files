@@ -31,11 +31,7 @@ Examine the following 3 parameters:
 ***
 **NOTE** 
 
-There are several things to consider. 
-For one, a much higher number of gene counts or molecule counts may indicate that there are doublets,
-especially,in droplet based scRNA-seq data like 10X.
-This however is smart-seq, which is not droplet based. 
-However, the caveat with smartseq is that it tends to capture a higher number of mitochondrial genes (i.e. dead cells).
+There are several things to consider. For one, a much higher number of gene counts of molecule counts may indicate the presence of doublets, especially for droplet-based scRNA-seq like 10X. In addition, high mitochondrial gene percentages may indicate dead cells, which is common in plate-based scRNA-seq like smart-seq.
 
 ***
 
