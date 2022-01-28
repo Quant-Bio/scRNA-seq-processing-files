@@ -156,7 +156,8 @@ Also, if the cells are B or T, cell subtypes merge with B and T cells, respectiv
 ### So not to lose the low count b cell subtypes, collapse those first
 seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$SingleR,
                                            B_cell = params$anno_BCell,
-                                           HSC = params$anno_HCS)
+                                           HSC = params$anno_HCS,
+                                           Fibroblasts = params$anno_fibroblast)
 
 freq<-data.frame(tabyl(seurat_analysed@meta.data$SingleR2, sort = TRUE))
 colnames(freq)<-c("cells","n","proportion")
@@ -169,20 +170,8 @@ freq<-freq[order(freq$n, decreasing = TRUE),]
 others<-as.vector(freq$cells[which(freq$n<params$anno_cutoff)])
 
 seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$SingleR2,
-                                           Fibroblasts=c("Fibroblasts",
-                                                         "Chondrocytes",
-                                                         "Smooth_muscle_cells",
-                                                         "Tissue_stem_cells"),
-#                                           MoMacDC=c("Macrophage","Monocyte","DC")
                                            Others=c(others,
-                                                    "Embryonic_stem_cells",
-                                                    "GMP",
-                                                    "Hepatocytes",
-                                                    "iPS_cells",
-                                                    "Keratinocytes",
-                                                    "MSC",
-                                                    "Neuroepithelial_cell",
-                                                    "Neurons"))
+                                                    params$anno_Others))
 
 ### Change the identity from tissue type to cell type 
 Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
