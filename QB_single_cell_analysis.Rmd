@@ -17,14 +17,14 @@ params:
   analysed_dataset: "Example"
   more_authors: ""
   dir_seurat: "../../Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Downloaded_unedited_data/Seurat_Breast_Bassez1_MINIATURE.rds"
-  QCS: false
+  QCS: true
   qcs_save_file: "Seurat_Breast_Bassez1.rds"
   qcs_indent_var: "orig.ident"
   qcs_std_nFeature_RNA: 200
   qcs_vars_regress: ["nCount_RNA", "percent.mt"]
   qcs_ncells: 1
   qcs_nfeatures: 1
-  ANNO: false
+  ANNO: true
   anno_cutoff: 50
   anno_sigleR: true # Make sure qcs_save_file contains the ALSO the annotation with sigleR
   anno_Bcells: ["Pro-B_cell_CD34+","Pre-B_cell_CD34-","B_cell"]
