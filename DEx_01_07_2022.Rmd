@@ -77,7 +77,7 @@ if(!exists("seurat_analysed")){
 
 ### Chang identity to cell type
 Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$dex_ident_cell_type]
-seurat_analysed<-subset(seurat_analysed, downsample=1000)
+# seurat_analysed<-subset(seurat_analysed, downsample=1000)
 
 ```
 
