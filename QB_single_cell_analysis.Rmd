@@ -30,10 +30,8 @@ params:
   anno_Bcells: ["Pro-B_cell_CD34+","Pre-B_cell_CD34-","B_cell"]
   anno_HCS: ["HSC_-G-CSF","HSC_CD34+"]
   anno_save_file: "Seurat_Breast_Bassez1_MINIATURE2.rds"
-  anno_fibroblast: ["Fibroblasts", "Chondrocytes",
-  "Smooth_muscle_cells","Tissue_stem_cells"]
-  anno_Others: ["Embryonic_stem_cells","GMP","Hepatocytes","iPS_cells",
-  "Keratinocytes","MSC","Neuroepithelial_cell","Neurons"]
+  anno_fibroblast: ["Fibroblasts", "Chondrocytes","Smooth_muscle_cells","Tissue_stem_cells"]
+  anno_Others: ["Embryonic_stem_cells","GMP","Hepatocytes","iPS_cells","Keratinocytes","MSC","Neuroepithelial_cell","Neurons"]
   DEx: true
   dex_ident_cell_type: "SingleR2"
   dex_cluster_algorithm: 1
