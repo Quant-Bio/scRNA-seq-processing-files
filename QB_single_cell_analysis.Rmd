@@ -24,6 +24,10 @@ params:
   qcs_vars_regress: ["nCount_RNA", "percent.mt"]
   qcs_ncells: 1
   qcs_nfeatures: 1
+  qcs_patient_id: "patient_id"
+  qcs_count_cutoff: "NA"
+  qcs_feature_cutoff: "NA"
+  qcs_mt_cutoff: "NA"
   ANNO: true
   anno_cutoff: 50
   anno_sigleR: true # Make sure qcs_save_file contains the ALSO the annotation with sigleR
@@ -45,7 +49,7 @@ params:
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE}
 options(knitr.duplicate.label = 'allow')
-knitr::opts_chunk$set(message = FALSE, warning = FALSE, echo = FALSE,
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, echo = TRUE,
                       tidy='styler', tidy.opts=list(strict=FALSE))
 library(here)
 
