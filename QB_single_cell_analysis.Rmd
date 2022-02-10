@@ -81,7 +81,7 @@ Identify differentially expressed genes in scRNA-seq data
 
 <details>
   <summary>Information about R, the OS and attached or loaded packages</summary>
-```{r sesion_info, echo=FALSE}
+```{r sesion_info}
 pander::pander(sessionInfo(), compact = FALSE)
 ```
 </details>
