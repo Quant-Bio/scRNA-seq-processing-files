@@ -1,7 +1,7 @@
 
 ```{r setup, include=FALSE, echo=FALSE, include=FALSE}
 ### Set knitr global options
-knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
 
 ### Load libraries
 library(data.table)
