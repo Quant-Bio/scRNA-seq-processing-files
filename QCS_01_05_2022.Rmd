@@ -17,9 +17,9 @@ library(ggplot2)
 ### First the seurat obect
 seurat_analysed <- readRDS(file=params$dir_seurat)
 
-seurat_analysed@meta.data[,"orig.ident"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"orig.ident"])
-seurat_analysed@meta.data[,"Cell"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"Cell"])
-seurat_analysed@meta.data[,"patient_id"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"patient_id"])
+# seurat_analysed@meta.data[,"orig.ident"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"orig.ident"])
+# seurat_analysed@meta.data[,"Cell"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"Cell"])
+# seurat_analysed@meta.data[,"patient_id"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"patient_id"])
 
 ### Change ident to original idents
 Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$qcs_indent_var]
@@ -122,11 +122,11 @@ measure.vars=c("nCount_RNA",
 
 ### Calculate medians
 count_medians<-ddply(Meta_melted[which(Meta_melted$variable=="nCount_RNA"),],
-                     .(patient_id),summarise, med=median(value))
+                     params$qcs_patient_id,summarise, med=median(value))
 feature_medians<-ddply(Meta_melted[which(Meta_melted$variable=="nFeature_RNA"),],
-                       .(patient_id),summarise, med=median(value))
+                     params$qcs_patient_id,summarise, med=median(value))
 mt_medians<-ddply(Meta_melted[which(Meta_melted$variable=="percent.mt"),],
-                  .(patient_id),summarise, med=median(value))
+                     params$qcs_patient_id,summarise, med=median(value))
 
 
 ### Round the numbers for plotting
@@ -151,9 +151,9 @@ calculations<-c("count_quants","feature_quants","mt_quants")
 
 for(i in 1:length(variables)) {
   print(ggplot(data=Meta_melted[which(Meta_melted$variable==variables[i]),], 
-               aes(x=patient_id,
+               aes(x=params$qcs_patient_id,
                    y=value,
-                   fill=patient_id))+
+                   fill=params$qcs_patient_id))+
           stat_boxplot(geom="errorbar")+
           geom_boxplot()+
           theme_sara()+
