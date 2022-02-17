@@ -11,6 +11,37 @@ library(plyr)
 library(ggplot2)
 ```
 
+## 0.1 Create sample level rds file, if starting from filtered_matrix_bc file for each sample
+
+```{r create-sample-seurat}
+if (as.logical(params$qcs_prepare_raw_seurat)) {
+  samples <- list.dirs(params$qcs_mtx_dir, recursive=FALSE, full.names = FALSE)
+  sample.dirs <- list.dirs(params$qcs_mtx_dir, recursive=FALSE, full.names=TRUE)
+  names(sample.dirs) <- samples
+  create_rds <- function(sample_dir) {
+    expression_matrix <- ReadMtx(mtx = paste0(eval(sample_dir), "/filtered_feature_bc_matrix/matrix.mtx.gz"),
+                                 features = paste0(eval(sample_dir), "/filtered_feature_bc_matrix/features.tsv.gz"),
+                                 cells = paste0(eval(sample_dir), "/filtered_feature_bc_matrix/barcodes.tsv.gz"),
+                                 feature.column = 1,
+                                 mtx.transpose=FALSE)
+    return(expression_matrix)
+  }
+  seurat.list <- lapply(sample.dirs, function(sd) create_rds(sd))
+}
+```
+
+
+## 0.2 Merge sample level rds files into experiment level rds file
+
+
+```{r merge-seurat}
+if (as.logical(params$qcs_merge_sample_seurat)) {
+  num_seurat_obj <- length(seurat.list)
+  experiment_seurat <- merge(x=seurat.list[[1]], y=seurat.list[2:num_seurat_obj],  add.cell.ids=names(seurat.list))
+}
+saveRDS(experiment_seurat, file=params$dir_seurat)
+```
+
 > **_NOTE:_**  Make sure the data is the unedited seurat file.
 
 ```{r}
