@@ -46,7 +46,7 @@ saveRDS(experiment_seurat, file=params$raw_seurat)
 
 ```{r}
 ### First the seurat obect
-seurat_analysed <- readRDS(file=params$dir_seurat)
+seurat_analysed <- readRDS(file=params$raw_seurat)
 
 # seurat_analysed@meta.data[,"orig.ident"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"orig.ident"])
 # seurat_analysed@meta.data[,"Cell"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"Cell"])
