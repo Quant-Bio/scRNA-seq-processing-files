@@ -16,10 +16,10 @@ output:
 params:
   analysed_dataset: "Chang_scRNASeq - Su_7142_210727B6 "
   more_authors: "Jennifer Modliszewski, Ph.D."
-  raw_seurat: "../../Dropbox (QuantBio LLC)/QB_shared/Reports/Kirschlab/Chang_scRNA_Seq/processedData/Su_7142_210727B6_raw.rds"
+  raw_seurat: "./../../../Dropbox (QuantBio LLC)/QB_shared/Reports/Kirschlab/Chang_scRNA_Seq/processedData/Su_7142_210727B6_raw.rds"
   QCS: true
   qcs_prepare_raw_seurat: true
-  qcs_mtx_dir: "./../cellranger_output"
+  qcs_mtx_dir: "./../../cellranger_output"
   qcs_merge_sample_seurat: true
   qcs_save_file: "Seurat_QCS.rds"
   qcs_indent_var: "orig.ident"

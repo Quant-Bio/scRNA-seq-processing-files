@@ -39,7 +39,7 @@ if (as.logical(params$qcs_merge_sample_seurat)) {
   num_seurat_obj <- length(seurat.list)
   experiment_seurat <- merge(x=seurat.list[[1]], y=seurat.list[2:num_seurat_obj],  add.cell.ids=names(seurat.list))
 }
-saveRDS(experiment_seurat, file=params$dir_seurat)
+saveRDS(experiment_seurat, file=params$raw_seurat)
 ```
 
 > **_NOTE:_**  Make sure the data is the unedited seurat file.
