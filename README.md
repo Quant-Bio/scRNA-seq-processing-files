@@ -16,3 +16,14 @@ For installing with R 4.1.2 on Ubuntu 20.0.4, in order for the package `systemfo
 ```
 sudo apt -y install libfontconfig1-dev
 ```
+Although this will solve the installation of fontconfig, R may not be able to find the path where the needed `freetype2.pc` is.  To solve, run `sudo find` and add the resulting path to your `$PATH` variable
+
+```
+sudo find . -type f | grep "freetype2.pc"
+```
+
+`./usr/lib/x86_64-linux-gnu/pkgconfig/freetype2.pc`
+
+```
+export PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/:$PATH
+```
