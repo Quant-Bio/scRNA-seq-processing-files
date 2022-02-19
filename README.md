@@ -8,3 +8,11 @@ _QCS_01_05_2022.RMD_ is the quality control (QC) and standardization (S) file in
 _Anno_01_06_2022.Rmd_ is a general script to perform cell type annotation of single cell RNA-seq datasets.
 
 _DEx_01_07__2022.Rmd_ identifies differential expressed genes in scRNA-seq data.
+
+## Installation notes
+
+For installing with R 4.1.2 on Ubuntu 20.0.4, in order for the package `systemfonts` to be installed, you must install font config as follows:
+
+```
+sudo apt -y install libfontconfig1-dev
+```
