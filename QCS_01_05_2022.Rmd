@@ -114,8 +114,7 @@ go into a negative value, which does nothing.
 Meta_melted<-reshape2::melt(seurat_analysed@meta.data[,c("nCount_RNA",
                                                 "nFeature_RNA",
                                                 "percent.mt",
-                                                params$qcs_patient_id,
-                                                "SingleR")],
+                                                params$qcs_patient_id)],
 measure.vars=c("nCount_RNA",
                "nFeature_RNA",
                "percent.mt"))
