@@ -281,7 +281,7 @@ seurat_analysed <- ScaleData(object = seurat_analysed,
 Score the cell cycle phase of each cell.
 This is done by calculating the G2M marker score with the `CellCycleScoring()` function provided in the _seurat package_.
 
-```{r}
+```{r, eval=params$qcs_cc}
 ### [1] Create G2M marker gene list (i.e. genes associated with the G2M phase of the 
 ### cell cycle using Seurat's built-in cc.genes (cell cycle) genes list
 g2m.genes <- cc.genes$g2m.genes
