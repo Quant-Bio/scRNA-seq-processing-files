@@ -150,7 +150,7 @@ variables<-c("nCount_RNA","nFeature_RNA","percent.mt")
 calculations<-c("count_quants","feature_quants","mt_quants")
 
 for(i in 1:length(variables)) {
-  print(ggplot(data=Meta_melted[which(Meta_melted$variable==variables[i]),], 
+  ggPlot = ggplot(data=Meta_melted[which(Meta_melted$variable==variables[i]),], 
                aes(x=!!as.name(params$qcs_patient_id),
                    y=value,
                    fill=!!as.name(params$qcs_patient_id)))+
@@ -159,9 +159,6 @@ for(i in 1:length(variables)) {
           theme_sara()+
           theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1.0, size=10),
                 axis.text.y=element_text(size=8.5))+
-          labs(title=paste(variables[i]),
-               x="Sample",
-               y="Log2 count") +
           geom_hline(yintercept=get(calculations[i])[1], linetype="dashed", 
                      color = "black", size=0.5)+
           geom_hline(yintercept=get(calculations[i])[2], linetype="dashed", 
@@ -172,7 +169,24 @@ for(i in 1:length(variables)) {
                      color = "black", size=0.5)+
           geom_hline(yintercept=get(calculations[i])[5], linetype="dashed", 
                      color = "black", size=0.5)+
-          guides(fill="none"))
+          guides(fill="none")
+  
+  if(variables[i] == "nCount_RNA"){
+    ggPlot = ggPlot +
+      labs(x="Sample",
+           y="Number of molecules detected in cell")
+  }else if(variables[i] == "nFeature_RNA"){
+    ggPlot = ggPlot +
+      labs(x="Sample",
+           y="Total number genes in cell")
+  }else if(variables[i] == "percent.mt"){
+    ggPlot = ggPlot +
+      labs(x="Sample",
+           y="Percent mitochondrial genes")
+  }
+  
+  print(ggPlot)
+  
 }
 
 ### Remove samples that meet all 3 of the following criteria:
