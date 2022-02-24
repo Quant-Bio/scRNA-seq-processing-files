@@ -9,6 +9,7 @@ library(readr)
 library(cowplot)
 library(plyr)
 library(ggplot2)
+require(styler)
 ```
 
 > **_NOTE:_**  Make sure the data is the unedited seurat file.

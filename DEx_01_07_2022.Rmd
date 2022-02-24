@@ -21,6 +21,7 @@ library(dplyr)
 library(ggpubr)
 library(circlize)
 library(readr)
+require(styler)
 
 ### Establish color schemes and themes needed
 theme_sara <- function() {

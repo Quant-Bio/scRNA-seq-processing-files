@@ -18,6 +18,8 @@ library(BiocParallel)
 library(readr)
 library(celldex)
 library(viridis)
+library(pheatmap)
+require(styler)
 
 theme_sara <- function() {
   theme_bw(base_size=14)+
