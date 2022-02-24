@@ -39,8 +39,9 @@ if(!exists("seurat_analysed")){
 ## 2.1 - Annotate with singleR
 
 ```{r, include=FALSE}
-anno_sigleR_text = "Reference data are load with Ensembl annotations.
-`ensembl = F` indicates to not convert row names to ensembl IDs."
+anno_sigleR_text = paste0("Reference data are load with Ensembl annotations.
+`ensembl = F` indicates to not convert row names to ensembl IDs.
+The selected annotation package is ", params$anno_annotation)
 
 if(!as.logical(params$anno_sigleR)){
   anno_sigleR_text = "> **_NOTE:_** The file has been already labeled by QuantBio with SingleR, and QC checks have been performed on the annotations. This step has been skipped."
@@ -49,7 +50,15 @@ if(!as.logical(params$anno_sigleR)){
 `r anno_sigleR_text`
 
 ```{r anno_singleR, tidy='styler', tidy.opts=list(strict=FALSE), eval = params$anno_sigleR}
-ref.data <- HumanPrimaryCellAtlasData(ensembl=FALSE) 
+
+if(params$anno_annotation == "HumanAtlas"){
+  ref.data <- HumanPrimaryCellAtlasData(ensembl=FALSE)   
+}else if(params$anno_annotation == "ImmGenData"){
+  ref.data <- ImmGenData(ensembl=FALSE)  
+}
+
+
+
 
 ### Assign the cell types. For this step, I'm parellelizing it with 
 ### the BiocParallel library. Parallelizing may not be necessary or helpful,
