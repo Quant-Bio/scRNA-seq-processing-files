@@ -30,6 +30,7 @@ params:
   qcs_mt_cutoff: "NA"
   qcs_cc: true
   ANNO: true
+  anno_annotation: "HumanAtlas" # current options are HumanAtlas and ImmGenData
   anno_cutoff: 50
   anno_sigleR: true # Make sure qcs_save_file contains the ALSO the annotation with sigleR
   anno_Bcells: ["Pro-B_cell_CD34+","Pre-B_cell_CD34-","B_cell"]
@@ -83,7 +84,7 @@ Identify differentially expressed genes in scRNA-seq data
 # Information about the Session 
 
 <details>
-  <summary>Information about R, the OS and attached or loaded packages</summary>
+<summary>Information about R, the OS and attached or loaded packages</summary>
 ```{r sesion_info}
 pander::pander(sessionInfo(), compact = FALSE)
 ```
