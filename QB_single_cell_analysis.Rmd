@@ -16,7 +16,7 @@ output:
 params:
   analysed_dataset: "Example"
   more_authors: ""
-  dir_seurat: "../../Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Breast_Bassez_2021/Downloaded_unedited_data/Seurat_Breast_Bassez1_MINIATURE.rds"
+  dir_seurat: "Seurat_Breast_Bassez1_MINIATURE2.rds"
   QCS: true
   qcs_save_file: "Seurat_QCS.rds"
   qcs_indent_var: "orig.ident"
@@ -28,6 +28,7 @@ params:
   qcs_count_cutoff: "NA"
   qcs_feature_cutoff: "NA"
   qcs_mt_cutoff: "NA"
+  qcs_cc: true
   ANNO: true
   anno_cutoff: 50
   anno_sigleR: true # Make sure qcs_save_file contains the ALSO the annotation with sigleR
@@ -52,7 +53,6 @@ options(knitr.duplicate.label = 'allow')
 knitr::opts_chunk$set(message = FALSE, warning = FALSE, echo = TRUE,
                       tidy='styler', tidy.opts=list(strict=FALSE))
 library(here)
-
 theme_sara <- function(){
   theme_bw(base_size=14)+
     theme(axis.text=element_text(color="black"),
@@ -60,7 +60,6 @@ theme_sara <- function(){
           strip.text = element_text(size=12),
           strip.background = element_rect(fill="white"))
 }
-
 ```
 
 # 1 - Quality control and standardization file (QCStanAnn)
