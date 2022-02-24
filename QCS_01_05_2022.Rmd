@@ -150,9 +150,9 @@ calculations<-c("count_quants","feature_quants","mt_quants")
 
 for(i in 1:length(variables)) {
   print(ggplot(data=Meta_melted[which(Meta_melted$variable==variables[i]),], 
-               aes(x=params$qcs_patient_id,
+               aes(x=!!as.name(params$qcs_patient_id),
                    y=value,
-                   fill=params$qcs_patient_id))+
+                   fill=!!as.name(params$qcs_patient_id)))+
           stat_boxplot(geom="errorbar")+
           geom_boxplot()+
           theme_sara()+
