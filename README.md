@@ -32,9 +32,9 @@ export PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/:$PATH
 
 ### `ggpubr`
 This issue is related to the nloptr error when installing `ggpubr`
-You have to install Cmake on Ubuntu
-https://vitux.com/how-to-install-cmake-on-ubuntu/
-Code copied for convenience here:
+You have to install Cmake on Ubuntu<br>
+https://vitux.com/how-to-install-cmake-on-ubuntu/<br>
+Code copied for convenience here:<br>
 ```
 sudo apt-get install build-essential libssl-dev
 cd /tmp
