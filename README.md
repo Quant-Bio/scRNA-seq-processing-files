@@ -11,6 +11,8 @@ _DEx_01_07__2022.Rmd_ identifies differential expressed genes in scRNA-seq data.
 
 ## Installation notes
 
+### `systemfonts`
+
 For installing with R 4.1.2 on Ubuntu 20.0.4, in order for the package `systemfonts` to be installed, you must install font config as follows:
 
 ```
@@ -26,4 +28,29 @@ sudo find . -type f | grep "freetype2.pc"
 
 ```
 export PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/:$PATH
+```
+
+### `ggpubr`
+This issue is related to the nloptr error when installing `ggpubr`
+You have to install Cmake on Ubuntu
+https://vitux.com/how-to-install-cmake-on-ubuntu/
+Code copied for convenience here:
+```
+sudo apt-get install build-essential libssl-dev
+cd /tmp
+wget https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0.tar.gz
+tar -zxvf cmake-3.20.0.tar.gz
+cd cmake-3.20.0
+```
+
+```
+./bootstrap
+```
+
+```
+make
+```
+
+```
+sudo make install
 ```
