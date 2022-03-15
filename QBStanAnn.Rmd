@@ -39,7 +39,7 @@ params:
   anno_fibroblast: ["Fibroblasts", "Chondrocytes","Smooth_muscle_cells","Tissue_stem_cells"]
   anno_Others: ["Embryonic_stem_cells","GMP","Hepatocytes","iPS_cells","Keratinocytes","MSC","Neuroepithelial_cell","Neurons"]
   DEx: true
-  dex_ident_cell_type: "SingleR2"
+  dex_ident: "SingleR2"
   dex_cluster_algorithm: 1
   dex_save_file: "Seurat_DEX.rds"
   dex_min_pct: 0.25
