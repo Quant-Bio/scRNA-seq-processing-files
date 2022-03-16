@@ -297,24 +297,70 @@ Score the cell cycle phase of each cell.
 
 ```{r, include=FALSE}
 qcs_cc_text = "This is done by calculating the G2M marker score with the `CellCycleScoring()` function provided in the _seurat package_."
-
 if(!as.logical(params$qcs_cc)){
   qcs_cc_text = "> **_NOTE:_** This step has been skipped."
 }
 ```
 `r qcs_cc_text`
 
+
 ```{r, eval=params$qcs_cc}
-### [1] Create G2M marker gene list (i.e. genes associated with the G2M phase of the 
+if (params$organism=="human") {
+ ### [1] Create G2M marker gene list (i.e. genes associated with the G2M phase of the 
 ### cell cycle using Seurat's built-in cc.genes (cell cycle) genes list
 g2m.genes <- cc.genes$g2m.genes
+s.genes <- cc.genes$s.genes
 g2m <- rownames(seurat_analysed)[rownames(seurat_analysed) %in% g2m.genes]
+
+} else if (params$organism=="mouse") {
+  cc_file <- RCurl::getURL("https://raw.githubusercontent.com/hbc/tinyatlas/master/cell_cycle/Mus_musculus.csv") 
+  cell_cycle_genes <- read.csv(text = cc_file)
+  
+  ah <- AnnotationHub::AnnotationHub()
+
+  # Access the Ensembl database for organism
+  ahDb <- AnnotationHub::query(ah, 
+              pattern = c("Mus musculus", "EnsDb"), 
+              ignore.case = TRUE)
+
+  # Acquire the latest annotation files
+  id <- ahDb %>%
+          mcols() %>%
+          rownames() %>%
+          tail(n = 1)
+
+  # Download the appropriate Ensembldb database
+  edb <- ah[[id]]
+
+  # Extract gene-level information from database
+  annotations <- genes(edb, 
+                       return.type = "data.frame")
+
+  # Select annotations of interest
+  annotations <- annotations %>%
+                  dplyr::select(gene_id, gene_name, seq_name, gene_biotype, description)
+
+
+  # Get gene names for Ensembl IDs for each gene
+  cell_cycle_markers <- dplyr::left_join(cell_cycle_genes, annotations, by = c("geneID" = "gene_id"))
+
+  # Acquire the S phase genes
+  s.genes <- cell_cycle_markers %>%
+              dplyr::filter(phase == "S") %>%
+              dplyr::pull("gene_name")
+        
+  # Acquire the G2M phase genes        
+  g2m.genes <- cell_cycle_markers %>%
+                dplyr::filter(phase == "G2/M") %>%
+                dplyr::pull("gene_name")
+}
+
 
 ### [2] Calculate G2M marker module score.
 seurat_analysed <- CellCycleScoring(seurat_analysed, 
-                            s.features = cc.genes$s.genes, ### Genes associated with s-phase
-                            g2m.features = g2m.genes, ### Genes associated with G2M phase
-                            set.ident = TRUE)
+                                    s.features = s.genes, ### Genes associated with s-phase
+                                    g2m.features = g2m.genes, ### Genes associated with G2M phase
+                                    set.ident = TRUE)
 ```
 
 ## 1.4 - Write to file
