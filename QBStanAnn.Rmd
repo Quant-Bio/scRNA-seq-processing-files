@@ -1,0 +1,100 @@
+---
+title: "Single cell analysis: `r params$analysed_dataset`"
+date: "Analysed on `r format(Sys.time(), '%B %d, %Y')`"
+author: "QuantBio `r params$more_authors`"
+output:
+  rmdformats::downcute:
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    gallery: false
+    highlight: tango
+    code_folding: hide
+    fig_width: 10
+    fig_height: 10
+    toc_depth: 5
+params:
+  analysed_dataset: "Example"
+  more_authors: "Rosa Hernansaiz, Vincent Perez, and Jen Modliszewski"
+  dir_seurat: "Seurat_Breast_Bassez1_MINIATURE.rds"
+
+#---------------------QUALITY CONTROL AND STANDARDIZATION-----------------------
+  QCS: true
+  organism: "human" # Organism used in the experiment
+  qcs_indent_var: "orig.ident" # Default identify of cells in metadata
+  qcs_std_nFeature_RNA: 200 # Lowest value of nFeature_RNA before cells are pruned
+  qcs_vars_regress: ["nCount_RNA", "percent.mt"] # Variables to regress out
+  qcs_ncells: 1 # Lowest number of cells that express a gene before pruning the gene
+  qcs_nfeatures: 1 # Lowest number of genes in a cell before pruning a cell
+  qcs_patient_id: "patient_id" # This will change depending on the experiment
+  qcs_count_cutoff: "NA" # Numerical value to set for the sample-level nFeature_RNA
+  qcs_feature_cutoff: "NA" # Numerical value to set for sample-level nCount_RNA
+  qcs_mt_cutoff: "NA" # Numerical value to set for sample-level mt.percent
+  qcs_cc: true # Set true if you want to add cell cycle phase for each cell to metadata
+  qcs_save_file: "Seurat_QCS.rds" # Name of the file to write new seurat object as
+
+#------------------ANNOTATE THE CELLS WITH TYPE AND PHASE-----------------------
+  ANNO: true # Set true to annotate the seurat object with cell types
+  anno_annotation: "HumanAtlas" # Reference for cell annotations. Current options are HumanAtlas and ImmGenData
+  anno_sigleR: true # Make sure qcs_save_file contains the ALSO the annotation with sigleR
+  anno_Others: ["Embryonic_stem_cells","GMP","Hepatocytes","iPS_cells","Keratinocytes","MSC","Neuroepithelial_cell","Neurons"] # These rare cells are collapsed into others
+  anno_cutoff: 50 # Lowest count for a cell type before its collapsed into "Other"
+  anno_Bcells: ["Pro-B_cell_CD34+","Pre-B_cell_CD34-","B_cell"] # These cells are collapsed into B cells
+  anno_HCS: ["HSC_-G-CSF","HSC_CD34+"] # These cells are collapsed into HSC cells
+  anno_fibroblast: ["Fibroblasts", "Chondrocytes","Smooth_muscle_cells","Tissue_stem_cells"] # These cells are collapsed into fibroblasts
+  anno_save_file: "Seurat_annotated.rds" # Name of the file to write new seurat object
+  
+#------------------CLUSTERING AND DIFFERNTIAL EXPRESSION------------------------
+  DEx: true # Set true if you want to run differential expression
+  dex_ident: "SingleR2" # Cell labels to run differential expression on
+  dex_cluster_algorithm: 1 # Clustering algorithm to use (1 = louvain, 2 = louvain with multilevel)
+  dex_variance_explained: 0.8 # Percentage of variance explained by # of PCs
+  dex_run_dex: false # Set false if you do not want to run differential expression. A file will still be written with PCA, UMAP, and tSNE metadata
+  dex_min_pct: 0.25 # Minimum percent of cells a gene can be expressed in to be identified as significant
+  dex_only_positive: true # If you want only examine positively expressed genes use this.
+  dex_logfc_threshold: 0.0 # FC threshold for significant genes
+  dex_p_val_adj: 0.1 # P value threshold for significant genes
+  dex_save_file: "Seurat_DEx.rds" # Name of the file to write new seurat object in
+  dex_mat_save_file: "DEx_mat.csv" # Name of the file to write the DE gene list as
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE}
+options(knitr.duplicate.label = 'allow')
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, echo = TRUE,
+                      tidy='styler', tidy.opts=list(strict=FALSE))
+library(here)
+theme_sara <- function(){
+  theme_bw(base_size=14)+
+    theme(axis.text=element_text(color="black"),
+          panel.background=element_rect(color="white"),
+          strip.text = element_text(size=12),
+          strip.background = element_rect(fill="white"))
+}
+```
+
+# 1 - Quality control and standardization file (QCStanAnn)
+Perform quality control and standardization of single cell RNA-seq datasets.
+
+```{r child = 'QCStan.Rmd', eval=params$QCS}
+```
+
+# 2 - Annotation
+Perform cell type annotation of single cell RNA-seq datasets.
+
+```{r child = 'Ann.Rmd', eval=params$ANNO}
+```
+
+# 3 - Differentilal Expression analysis
+Identify differentially expressed genes in scRNA-seq data
+
+```{r child = 'DEx.Rmd', eval=params$DEx}
+```
+
+# Information about the Session 
+
+<details>
+<summary>Information about R, the OS and attached or loaded packages</summary>
+```{r sesion_info}
+pander::pander(sessionInfo(), compact = FALSE)
+```
+</details>

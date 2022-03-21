@@ -77,9 +77,7 @@ if(!exists("seurat_analysed")){
 }
 
 ### Chang identity to cell type
-Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$dex_ident_cell_type]
-# seurat_analysed<-subset(seurat_analysed, downsample=1000)
-
+Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$dex_ident]
 ```
 
 ## 3.1 - PCA analyses
@@ -159,7 +157,7 @@ DimPlot(seurat_analysed, reduction = "pca",
   xlab("PC 1")+
   theme(axis.title.y = element_text(),
         axis.title.x = element_text())
-Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
+Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$dex_ident]
 ```
 
 ### Method 4 - DimHeatmapt 
@@ -231,7 +229,6 @@ the dataset.
 The option selected for this analysis is **`r cluster_option_readable`**.
 
 ```{r, tidy='styler', tidy.opts=list(strict=FALSE), comment= ""}
-
 ### Identify neighbors
 seurat_analysed <- FindNeighbors(seurat_analysed, dims = 1:PCs)
 
@@ -299,11 +296,11 @@ While there is generally going to be a loss in power,
 the speed increases can be significant and the 
 most highly differentially expressed features will likely still rise to the top.
 
-```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
+```{r, tidy='styler', tidy.opts=list(strict=FALSE),eval=params$dex_run_dex}
 ### Find markers for every cluster compared to all remaining cells
-Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
+Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$dex_ident]
 DE_seurat_analysed <- FindAllMarkers(seurat_analysed, 
-                            only.pos = params$dex_only_post, 
+                            only.pos = params$dex_only_positive, 
                              min.pct = params$dex_min_pct, 
                              logfc.threshold = params$dex_logfc_threshold)
 
@@ -314,6 +311,12 @@ sigs <- DE_seurat_analysed[which(DE_seurat_analysed$p_val_adj< params$dex_p_val_
 top5 <- sigs %>%
     group_by(cluster) %>%
     top_n(n = 5, wt = avg_log2FC)
+    
+### Rearrange for convenience
+lvls<- as.data.frame(sort(table(seurat_analysed@meta.data[,params$dex_ident]), decreasing=T))
+top5 <- top5 %>%  mutate(cluster =  factor(cluster, levels = lvls$Var1)) %>%
+  arrange(cluster) 
+
 
 ### List the top 5 highest expressed genes for each cell subtype
 sigs %>%
@@ -327,27 +330,30 @@ sigs %>%
                caption = " Identify significantly DE genes. Selection of the 5 highest expressed genes for each cell subtype.",
                digits = 2) %>%
     kableExtra::scroll_box(width = "800px", height = "400px")
-
 ```
 
 
-```{r, fig.height=10, fig.width=12, fig.cap="Heatmap of top 5 Differentially Expressed Genes", tidy='styler', tidy.opts=list(strict=FALSE)}
+```{r, fig.height=10, fig.width=12, fig.cap="Heatmap of top 5 Differentially Expressed Genes", tidy='styler', tidy.opts=list(strict=FALSE),eval=params$dex_run_dex}
+### To plot the heatmap, I'll downsample first
+seurat_small<-subset(seurat_analysed, downsample=1000)
+seurat_small@meta.data[,params$dex_ident]<-factor(seurat_small@meta.data[,params$dex_ident],levels=lvls$Var1)
+
 ### Subset the top 5 genes
-mat<-as.matrix(seurat_analysed@assays[["RNA"]]@data)
+mat<-as.matrix(seurat_small@assays[["RNA"]]@data)
 mat<-mat[top5$gene,]
 
 ### Create an object to establish column annotations
-ha <- HeatmapAnnotation(Celltype=seurat_analysed@meta.data$SingleR2,
-                        col=list(Celltype=ct.colors),
+ha <- HeatmapAnnotation(Cluster=seurat_small@meta.data[,params$dex_ident],
+#                        col=list(Cluster=ct.colors),
                         border=TRUE)
 
 ### Add row annotation colors
 index<-match(top5$gene, DE_seurat_analysed$gene)
 ra <- rowAnnotation(`Fold-change (FC)`=anno_barplot(top5$avg_log2FC, 
                                                add_numbers=TRUE),
-                    `FC cell reference` = top5$cluster,
+                    `FC reference` = top5$cluster,
                     annotation_name_rot=90,
-                    col=list(`FC cell reference`=ct.colors),
+#                    col=list(`FC reference`=ct.colors),
                     gp = gpar(col = "black")
                     )
 
@@ -355,7 +361,7 @@ Heatmap(mat,
         show_column_names = F, 
         col=cols, 
         top_annotation = ha, 
-        column_split = seurat_analysed@meta.data$SingleR2, 
+        column_split = seurat_small@meta.data[,params$dex_ident], 
         border = T, 
         cluster_column_slices = FALSE,
         cluster_row_slices =  FALSE,
@@ -373,7 +379,8 @@ Heatmap(mat,
 ## 3.4 - Write to file
 The annotation is done, the file is save on **_`r params$dex_save_file`_**.
 
-```{r, include=FALSE}
+```{r, include=FALSE, eval=params$dex_run_dex}
 ### All the QC is done, so now we may write to file
+write.csv(DE_seurat_analysed, file=params$dex_mat_save_file)
 write_rds(seurat_analysed, file=params$dex_save_file)
 ```
