@@ -1,4 +1,6 @@
 # scRNA-seq-processing-files
+
+## QBStanAnn
 A repository that contains files for processing scRNA-seq seurat objects.
 
 `QBStanAnn.Rmd` is the main Rmarkdown that calls the `QC`, `Annotation`, and `Differential Expression` scripts.  
@@ -9,7 +11,7 @@ A repository that contains files for processing scRNA-seq seurat objects.
 
 `DEx.Rmd` identifies differential expressed genes in scRNA-seq data.
 
-# Quick pass
+## QB_SingleCell_quickpass
 `QB_SingleCell_quickpass.Rmd` is a file for quick processing and QC of new data sets.  Because this script downsamples the cells, it should run in about 15-20 minutes.
 
 ### Features included
