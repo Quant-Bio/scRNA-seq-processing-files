@@ -25,17 +25,18 @@ params:
   nCount.ll: 2000 # default 2000
   nCount.ul: 40000  # default 40000
   transform: standard # < standard | sct_v2 | sct_v1 >
-  var_regress: none # <none | ["nCount_RNA", "percent.mt", "cc"] # none or bracketed list, cc=cell-cycle, only use cc with standard transformation at this point in time
-  num_var_feature: 3000 # 2k, 5k, 10k are recommended choices, start with 2k or 5k, 2k best for regression
+  var_regress: none # <none | ["nCount_RNA", "percent.mt", "cc"] # none or bracketed list, cc=cell-cycle, only use cc with standard transformation at this point in time, cc regression not recommended.
+  num_var_feature: 5000 # 2k, 5k, 10k are recommended choices, start with 2k or 5k, 2k best for speed
   cell_cycle: true # whether or not score cell for cell cycle phase
-  exp_metadata: false # enter file name if there is metadata to add, not yet supported
   cluster_algorithm: ["Louvain2"] # <Leiden | Louvain2 | Louvain | SLM > as bracketed list; leidenalg must be installed for Leiden
-  cluster_resolution: [0.15, 0.2, 0.5, 0.8]
+  cluster_resolution: [0.15, 0.2, 0.5, 0.8, 1.1, 1.4]
   anno_db: both # < HPCA | ImmGen | both > # TO-DO convert coding to list
   mouse_human_method: both # < biomart | lowercase | both > choice of how to convert HPCA atlas to human genes - via biomart or lowercasing it?
   pref_ann: ImmGen # potentially same as anno_db
   biomart_rds: "./../processedData/h2m_biomart.rds"
-  downsample: 20000 # Number of cells to subset to for fast clustering and annotation
+  downsample: false # boolean, whether or not to downsample cells (default=TRUE)
+  downsample_cells: 20000 # Number of cells to downsample to, default=20k, ignored if downsample=FALSE
+  exp_metadata: "./../rawData/scRNAseq_metadata_clean.csv" # all column names other than SampleIDs will be utilized for covariate analysis, please clean a priori, names will be cleaned via janitor
 ---
 
 <style>
@@ -51,17 +52,16 @@ mark {
 
 ```{r, eval=FALSE, include=FALSE, echo=FALSE}
 # TO-DO 
-# 2. make cluster marker heatmap into complex heatmap instead of using DoHeatmap function
-# 5. Re-write celldex reference section to allow for additional references
-# 6. improve coding in biomart/lowercase human section
-# 7. Add scrublet and/or DoubletFinder support for doublet detection
-# 8. Change to scientific notation for number on x-axis that tend to get scrunched
-# 9. Assess number of samples and dynamically determine figure widths and plot layout for sample stats section.
-# 10. Add support for metadata use and scater function,ef:
-#   >  example_sce <- logNormCounts(example_sce) 
-#   >  vars <- getVarianceExplained(example_sce, 
-#              variables=c("tissue", "total mRNA mol", "sex", "age"))
-#   >  plotHighestExprs(example_sce, exprs_values = "counts")
+# 1.  make cluster marker heatmap into complex heatmap instead of using DoHeatmap function
+# 2.  Re-write celldex reference section to allow for additional references
+# 3.  improve coding in biomart/lowercase human section
+# 4.  Add scrublet and/or DoubletFinder support for doublet detection
+# 5.  Change to scientific notation for number on x-axis that tend to get scrunched
+# 6.  Assess number of samples and dynamically determine figure widths and plot layout for sample stats section.
+# 7.  Add support for metadata use and scater function, get variance explained
+# 8.  Incorporate scater's  plotHighestExprs(example_sce, exprs_values = "counts")
+# 9.  Hard code reference colors for HPCA and ImmGen
+# 10. Fix annotation pHeatmap - rewrite plot
 
 # Low-priority
 # 1. add support for SCT + cell cycle regression (currently only capable with standard scale mode)
@@ -151,6 +151,12 @@ if ("cc" %in% params$var_regress) {
 } else {
   cc_regress=FALSE
 }
+
+if (!isFALSE(params$exp)) {
+  cov_analysis <- TRUE
+} else {
+  cov_analysis <- FALSE
+ }
 
 ```
 
@@ -269,7 +275,8 @@ cowplot::plot_grid(p1 + theme(legend.position="none", axis.title.y=element_blank
 features <- c("nFeature_RNA", "nCount_RNA", "percent.mt")
 names(features) <- features
 modetest.list <- BiocParallel::bplapply(features, 
-                   function(f) multimode::modetest(seurat_raw_20k@meta.data[[f]]))
+                   function(f) multimode::modetest(seurat_raw_20k@meta.data[[f]]),
+                   BPPARAM=MulticoreParam())
 
 pvalues_logical.list <- lapply(modetest.list, function(mt) mt[["p.value"]] <= 0.05)
                    
@@ -281,7 +288,8 @@ features.test <- features[unlist(pvalues_logical.list)]
 modes.list <- BiocParallel::bplapply(features.test, 
                      function(f) multimode::locmodes(seurat_raw@meta.data[[f]],
                                                      mod0=2,
-                                                     display=FALSE))
+                                                     display=FALSE),
+                     BPPARAM=MulticoreParam())
 
 antimode.list <- lapply(modes.list, 
                         function(m) round(m$locations[[2]], digits=2))
@@ -442,20 +450,23 @@ seurat_dbl <- seurat_raw
 seurat_dbl@meta.data$rmv <- ifelse(seurat_dbl@meta.data$nFeature_RNA < 200, "remove", "Keep")
 seurat_dbl@meta.data$rmv <- ifelse(seurat_dbl@meta.data$percent.mt >= 20, "remove", seurat_dbl@meta.data$rmv)
 seurat_dbl <- subset(seurat_dbl, subset=`rmv`=="Keep")
-seurat_dbl <- subset(seurat_dbl, downsample=80000)
+if (isTRUE(params$downsample)) {
+  seurat_dbl <- subset(seurat_dbl, downsample=80000)
+}
 samples <- seurat_dbl@meta.data$SampleID
 seurat.list <- SplitObject(seurat_dbl, split.by="SampleID")
-sce.list <- lapply(seurat.list, function(s) Seurat::as.SingleCellExperiment(s))
-sce.list <- lapply(sce.list, function(sce) scds::cxds_bcds_hybrid(sce))
+sce.list <- lapply(seurat.list, 
+                   function(s) Seurat::as.SingleCellExperiment(s))
+sce.list <- lapply(sce.list, 
+                   function(sce) scds::cxds_bcds_hybrid(sce))
 seurat.list <- lapply(sce.list,
-                      function(sce) Seurat::as.Seurat(sce, 
-                                              counts = "counts"))
+                      function(sce) Seurat::as.Seurat(sce,
+                                                      counts = "counts"))
 num_seurat_obj <- length(seurat.list)
 seurat_raw <- merge(x=seurat.list[[1]], y=seurat.list[2:num_seurat_obj])
 
 seurat_raw@meta.data$hybrid_score <- seurat_raw@meta.data$hybrid_score
 seurat_raw@meta.data$hybrid_call <- ifelse(seurat_raw@meta.data$hybrid_score >= 1, "eDoublet", "eSinglet")
-
 ```
 
 ## Sample plots {.tabset}
@@ -510,7 +521,7 @@ p1
 ```
 
 # Mark cells for filtering {.tabset}
-Create metadata variable and plot filtered vs non-filtered cells.  If doublet detection was performed the cells are already downsamples to 80k and filtered to exclude percent mitochondrial genes above 20% and number of genes below 200.
+Create metadata variable and plot filtered vs non-filtered cells.  If doublet detection was performed (and data will be downsampled), the cells are already downsampled to 80k and filtered to exclude percent mitochondrial genes above 20% and number of genes below 200.
 ```{r, mark-filtered}
 # nFeature_RNA
 seurat_raw@meta.data$Filter <- ifelse(seurat_raw@meta.data$nFeature_RNA < nFeature_RNA.ll | seurat_raw@meta.data$nFeature_RNA > nFeature_RNA.ul,
@@ -700,9 +711,23 @@ cowplot::plot_grid(p2 + theme(legend.position="none"),
 
 Only standard transformation is recommended at this time, due to statistical suitability and computational efficiency. SCTransformation is possible but has a very long run time. 
 
-```{r subset-seurat, eval=params$subset}
-seurat <- subset(seurat, downsample=params$downsample)
+```{r subset-seurat, eval=params$downsample}
+seurat <- subset(seurat, downsample=params$downsample_cells)
 ```
+
+```{r}
+num_cells <- ncol(seurat)
+num_genes <- nrow(seurat)
+```
+
+***
+
+The seurat dataset used for this analysis has:<br>
+- <mark>`r num_cells` cells </mark><br>
+- <mark>`r num_genes` genes </mark><br>
+
+***
+
 
 ```{r scale-data-1}
 if (params$transform=="standard") {
@@ -738,7 +763,8 @@ if (params$transform=="standard") {
   seurat.list <- BiocParallel::bplapply(seurat.list,
                         function(s) SCTransform(s, 
                                                 vars.to.regress=var_regress,
-                                                variable.features.n=params$num_var_feature))
+                                                variable.features.n=params$num_var_feature),
+                        BPPARAM=MulticoreParam())
   num_seurat_obj <- length(seurat.list)
   seurat <- merge(x=seurat.list[[1]], y=seurat.list[2:num_seurat_obj])
 }
@@ -1790,12 +1816,45 @@ p <- p + geom_boxplot()
 p <- p + scale_fill_manual(values=cell_cycle.cols)
 p <- p + facet_wrap(~.data[[pref_ann]])
 p
+```
+
+
+# Covariate analysis
+If experiment metadata was provided, it will be utilized here in the <mark> getVarianceExplained</mark> function from <mark>scater</mark>.  **This utility is not yet supported**.
+```{r add-meta-seurat, eval=FALSE} 
+#eval=params$exp_metadata}
+metadata.df <- as.data.frame(data.table::fread(params$exp_metadata))
+names(metadata.df) <- janitor::make_clean_names(names(metadata.df))
+setnames(metadata.df, "sample_id", "SampleID")
+var <- names(metadata.df)
+var <- var[!names(metadata.df) %chin% c(params$sample_id, "SampleID")]
+var <- c(var, features, "hybrid_score", "cxds_score", "bcds_score")
+
+# Add metadata
+sce <- as.SingleCellExperiment(seurat)
+cdata <- as.data.frame(colData(sce))
+cdata$cell_id <- rownames(cdata)
+cdata <- merge(cdata, metadata.df, by="SampleID")
+cdata <- DataFrame(cdata, row.names=cdata$cell_id)
+colData(sce) <- cdata
+sce <- scater::logNormCounts(sce) 
+sce <- runPCA(sce)
+sce <- scuttle::addPerCellQCMetrics(sce)
+
+var.pc <- getExplanatoryPCs(sce, BPPARAM=MulticoreParam())
+
+#Calculate and plot
+var.mat <- scater::getVarianceExplained(sce, 
+                                        variables=cdata,
+                                        BPPARAM=MulticoreParam())
+scater::plotExplanatoryVariables(var.mat)
+```
+
+```{r st}
 end <- Sys.time()
 ```
 
-***
-
-## {-}
+# {-}
 That's it! Spend some time looking through the report to determine next steps.
 
 ***
@@ -1805,7 +1864,7 @@ Analysis finished: `r end` <br>
 
 ***
 
-## R Session Information
+# R Session Information
 <details>
 <summary>Information about R, the OS and attached or loaded packages</summary>
 ```{r sesion_info}
