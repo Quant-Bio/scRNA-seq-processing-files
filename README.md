@@ -24,3 +24,13 @@ A repository that contains files for processing scRNA-seq seurat objects.
     - for mouse, HPCA can be converted to mouse genes via the "biomart" method or by "lowercasing" it.
 - Louvain, Louvain2, Leiden or SLM clustering algorithms
 - multiple cluster resolutions
+
+### Usage
+It is recommended to run with the render script, which will create output files with timestamp of start time of the run
+
+```
+nohup Rscript QB_SingleCell_quickpass_render.R
+```
+
+
+
