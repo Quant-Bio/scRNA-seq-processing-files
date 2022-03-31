@@ -16,8 +16,8 @@ A repository that contains files for processing scRNA-seq seurat objects.
 
 ### Features included
 - support for mouse and human
-- doublet detection
-- doublet filtering
+- doublet detection and filtering (via scds)
+- decontamination detection and filtering (via DecontX)
 - multiple filtering options (including hard filters and MAD)
 - standard or SCT transformation
 - HPCA and ImmGen references
