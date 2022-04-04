@@ -13,13 +13,13 @@ output:
       code_folding: hide
 params:
   parallel: multicore # <multicore | serial> # parameter setting for BiocParallel computing. see ?MulticoreParam() or ?SerialParam
-  seurat_raw: "./Seurat_Liver_Zheng.rds"
+  seurat_raw: "./../processedData/singlecell_RNAseq-Su_7142_210727B6_raw.rds"
   seurat_processed: "seurat.rds" # see render file
-  organism: human # < human | mouse >
-  sample_id: Donor 
+  organism: mouse # < human | mouse >
+  sample_id: SampleID 
   decontamX_detect: true # defaults to TRUE when doublet filtering is turned on.
   decontamX_filter: false # For now, we are using 0.5 as cutoff decontaminated counts.
-  decontamX_thresh: 0.5 # Thresholding is experimental, proceed at your own risk.
+  decontamX_thresh: 0.5 # Thresholding is experimental
   doublet_detect: true # < true | false > # currently only scds < hybrid > is supported; additional methods, including DoubletFinder and scrublet may be added in future
   doublet_filter: false # whether or not to remove annotated doublets
   filter: hard # < mad | multimodal | hard > mad=cell deviations, multimodal - based on distribution for nFeature count, hard - hard cutoff
@@ -30,14 +30,14 @@ params:
   nCount.ul: 40000  # default 40000
   transform: standard # < standard | sct_v2 | sct_v1 >
   var_regress: none #  ["nCount_RNA", "percent.mt", "cc"] # none or bracketed list, cc=cell-cycle, only use cc with standard transformation at this point in time, cc regression not recommended.
-  num_var_feature: 2000 # 2k, 5k, 10k are recommended choices, start with 2k or 5k, 2k best for speed
+  num_var_feature: 10000 # 2k, 5k, 10k are recommended choices, start with 2k or 5k, 2k best for speed
   cell_cycle: true # whether or not score cell for cell cycle phase
   cluster_algorithm: ["Louvain2"] # <Leiden | Louvain2 | Louvain | SLM > as bracketed list; leidenalg must be installed for Leiden
   cluster_resolution: [0.15, 0.2, 0.5, 0.8, 1.1, 1.4] # bracketed list
-  anno_db: ["HPCA"] # < HPCA | hpca | ImmGen > bracketed list, hpca is for case when organism=mouse and is to indicate mouse gene conversion via lowercase, HPCA for mouse utilizes biomart file
-  pref_ann: HPCA # potentially same as anno_db
+  anno_db: ["HPCA", "ImmGen", "hpca"] # < HPCA | hpca | ImmGen > bracketed list, hpca is for case when organism=mouse and is to indicate mouse gene conversion via lowercase, HPCA for mouse utilizes biomart file
+  pref_ann: ImmGen # potentially same as anno_db
   biomart_rds: "./../processedData/h2m_biomart.rds"
-  ann_collapse_n: 10 # recommended to set to 10-20 when downsampling or 100-200 when downsample=FALSE, cell categories with n < this value will be collapsed to "Others"
+  ann_collapse_n: 20 # recommended to set to 10-20 when downsampling or 100-200 when downsample=FALSE, cell categories with n < this value will be collapsed to "Others"
   downsample: true # boolean, whether or not to downsample cells (default=TRUE)
   downsample_cells: 20000 # Number of cells to downsample to, default=20k, ignored if downsample=FALSE
   exp_metadata: "./../rawData/scRNAseq_metadata_clean.csv" # all column names other than SampleIDs will be utilized for covariate analysis, please clean a priori, names will be further cleaned via janitor
@@ -57,14 +57,8 @@ mark {
 ```{r, eval=FALSE, include=FALSE, echo=FALSE}
 # TO-DO 
 # -  Add scrublet and/or DoubletFinder support for doublet detection
-# -  Change to scientific notation for UMAP of nFeature_RNA
-# -  Assess number of samples and dynamically determine figure widths and plot layout for sample stats section.
-# -  Add support for metadata /covariate analysis 
-# -  Incorporate scater's  plotHighestExprs(example_sce, exprs_values = "counts")
-# -  Hard code reference colors for HPCA and ImmGen
-# - Fix annotation pHeatmap so that colors are identical
+# - Fix annotation pHeatmap so that names are not scrunched.
 # - ? create child documents for decontamination and doublet QC at end
-
 
 # Numerous speed options
 
@@ -161,7 +155,7 @@ if ("cc" %in% params$var_regress) {
 }
 
 # This feature not yet supported.
-if (!isFALSE(params$exp)) {
+if (!isFALSE(params$exp_metadata)) {
   cov_analysis <- TRUE
 } else {
   cov_analysis <- FALSE
@@ -270,7 +264,28 @@ ref.cols[["SingleR_ImmGen"]]  <- c(`B cells` = "#F0A0FF",
                                    `T cells` = "#FE902EFF", 
                                    `Tgd` = "#FFEE33")
 
-
+ref.cols[["SingleR_HPCA"]] <- c(`Astocyte`="grey",
+                                `B_cell`="#F0A0FF",
+                                `BM`="chocolate4",
+                                `BM & Prog.`="bisque3",
+                                `CMP`="#DC8F71",
+                                 `DC`="#9DCC00",  
+                                `Endothelial_cells`="#6495ED",
+                                `Epithelial_cells`="#87CEFA",
+                                `Erythroblast`="red4",
+                                `Fibroblasts`="navy",
+                                `Gametocytes`="mediumpurple1",
+                                `HSC`="red",
+                                `Macrophage`="#1C8356",
+                                `Monocyte`="#81C57A",
+                                `Myelocyte`="green", 
+                                `Neutrophils`="#b10da1",
+                                `NK_cell`="#8F7C00",
+                                `Osteoblasts`="cyan3",
+                                `Platelets`="#A5DAC8",
+                                `T_cells`="#FE902EFF",
+                                `Others` = "gray40")
+ref.cols[["SingleR_hpca"]] <- ref.cols[["SingleR_HPCA"]]                                
 ```
 
 
@@ -278,6 +293,7 @@ ref.cols[["SingleR_ImmGen"]]  <- c(`B cells` = "#F0A0FF",
 
 Calculate Percent Mitochondial genes to be used in downstream filtering
 ```{r percent-mt}
+# the prefixes below should work for human or mouse.
 seurat_raw <- PercentageFeatureSet(seurat_raw, pattern = "^MT-|^mt-", col.name = "percent.mt")
 ```
 
@@ -440,10 +456,8 @@ kable(sample.median.df, booktabs = TRUE) %>%
   kable_styling(font_size = 12)
 ```
 
-
-# Determine filtering thresholds
-
-Set limits
+# Set filtering limits
+Setting limits based on parameters.  Cells will be filtered for doublets and ambient RNA after doublet detection and ambient RNA detection, if performed.
 ```{r set-limits}
 if (params$filter=="multimodal") {
   if (modetest.list[["nFeature_RNA"]][["p.value"]] <= 0.05) {
@@ -502,8 +516,7 @@ Prior to doublet detection a minimum amount of filtering is performed. If cells 
 
 Currently, doublet detection is performed via the R package <mark>scds</mark>. The <mark>hybrid</mark> score utilized here incorporates two doublet scores:
 - **bcds** - artificial doublets are created and a doublet classifier is trained.  Cells are assigned a probability of falling into the artificial doublet class.
-- **cxds** - expected co-expression of gene-pairs based on frequency is utilized to assign a rank-order based score to all gene-pairs.  Scores for co-occuring gene-pairs for each cell are summed. <br>
-The **hybrid** score is derived by summing the normalized **bcds** and **cxdx** scores. 
+- **cxds** - expected co-expression of gene-pairs based on frequency is utilized to assign a rank-order based score to all gene-pairs.  Scores for co-occuring gene-pairs for each cell are summed. The **hybrid** score is derived by summing the normalized **bcds** and **cxds** scores. 
 
 
 ```{r doublet-detect, warning=FALSE, message=FALSE, eval=dbl_dtct}
@@ -529,6 +542,14 @@ num_seurat_obj <- length(seurat.list)
 seurat_raw <- merge(x=seurat.list[[1]], y=seurat.list[2:num_seurat_obj])
 
 seurat_raw@meta.data$hybrid_call <- ifelse(seurat_raw@meta.data$hybrid_score >= 1, "eDoublet", "eSinglet")
+
+```
+
+```{r, include=FALSE, echo=FALSE, print=FALSE, message=FALSE}
+rm(seurat_dbl)
+rm(seurat.list)
+rm(sce.list)
+gc()
 ```
 
 ```{r dbl-all, eval=dbl_dtct}
@@ -573,9 +594,10 @@ p1
 dbl_data.df$hybrid_call <- factor(dbl_data.df$hybrid_call, levels=c("eSinglet", "eDoublet"))
 p <-  ggplot(data=dbl_data.df, aes(x=SampleID, fill=hybrid_call))
 p <- p + geom_bar(position="fill", color="black") 
-p <- p + scale_fill_manual(values=dbl.cols) 
+p <- p + scale_fill_manual(values=dbl.cols, name="Hybrid call") 
 p <- p + theme_sara()
-p <- p + theme(axis.title.x = element_blank())
+p <- p + theme(axis.title.x = element_blank(),
+               axis.text.x = element_text(angle=90))
 p
 ```
 
@@ -591,20 +613,33 @@ p1
 ```
 
 # Decontamination
-This function is recently incorporated and not completely recommended unless you know what you are doing.  The <mark>DecontX</mark> package is utilized for contaminant detection.  A threshold of 0.5 is recommended.  DecontX can be run with all samples together (as is done here) or with the raw (unfiltered data) as background.
+This function is recently incorporated and not completely recommended unless you know what you are doing.  The <mark>DecontX</mark> package is utilized for contaminant detection.  A threshold of 0.5 is recommended.  DecontX can be run with all samples, with each sample as a batch.  If trouble with decontamination continues and raw counts are available, consider using those as background.
 
 ```{r, decontam-detect, eval=dcx_dtct}
 sce <- as.SingleCellExperiment(seurat_raw)
-sce <- celda::decontX(sce)
-seurat_raw <- CreateSeuratObject(counts=counts(sce),
+sce <- celda::decontX(sce, batch=sce$SampleID)
+
+# If you do not reset these, bad things will happen. 
+sce$nCount_RNA <- NULL
+sce$nFeature_RNA <- NULL
+
+if (isTRUE(params$decontamX_filter)) {
+  r <- round(decontXcounts(sce))
+  seurat_raw <- CreateSeuratObject(counts=r,
                                  meta.data=as.data.frame(colData(sce)))
+} else {
+  seurat_raw <- CreateSeuratObject(counts=counts(sce),
+                                 meta.data=as.data.frame(colData(sce)))
+}
+
 seurat_raw@meta.data$decontX_contamination <- sce$decontX_contamination
 seurat_raw@meta.data$contam_status <- ifelse(seurat_raw@meta.data$decontX_contamination >= params$decontamX_thresh, 
                                            "Ambient", 
                                            "Native")
+
 ```
 
-```{r dcx-all, eval=dbl_dtct}
+```{r dcx-all, eval=dcx_dtct}
 p <- ggplot(data=seurat_raw@meta.data, aes(x=decontX_contamination))
 p <- p + geom_density(fill=dcx.cols[["Ambient"]], color="#62C707FF")
 p <- p + theme_sara() + labs(x="Percent contamination")
@@ -640,12 +675,14 @@ p1
 
 ### Contaminated threshold
 ```{r, boxplot2-dcx, fig.width=10, fig.height=5, eval=dcx_dtct}
+dat$contam_status <- factor(dat$contam_status, levels=c("Native", "Ambient"))
 p <-  ggplot(data=dat, aes(x=SampleID, fill=contam_status))
 p <- p + labs(y="Percent contamination")
 p <- p + geom_bar(position="fill", color="black") + scale_x_discrete(limits=X.ord)
-p <- p + scale_fill_manual(values=dcx.cols) 
+p <- p + scale_fill_manual(values=dcx.cols, name="Contamination status") 
 p <- p + theme_sara()
-p <- p + theme(axis.title.x = element_blank())
+p <- p + theme(axis.title.x = element_blank(),
+               axis.text.x=element_text(angle=90))
 p
 ```
 
@@ -661,10 +698,11 @@ p1 <- p1 + scale_fill_manual(values=sample.cols)
 p1
 ```
 
-# Mark cells for filtering
-Create metadata variable and plot filtered vs non-filtered cells.  If doublet detection was performed (and data will be downsampled), the cells are already downsampled to 80k and filtered to exclude percent mitochondrial genes above 20% and number of genes below 200.
-```{r, mark-filtered}
-# nFeature_RNA
+# Filtered cells
+If doublet detection was performed (and data will be downsampled), the cells are already downsampled to 80k and filtered to exclude percent mitochondrial genes above 20% and number of genes below 200.
+
+```{r, mark-filtered-2}
+
 seurat_raw@meta.data$Filter <- ifelse(seurat_raw@meta.data$nFeature_RNA < nFeature_RNA.ll | seurat_raw@meta.data$nFeature_RNA > nFeature_RNA.ul,
                                       "Remove",
                                       "Keep")
@@ -679,18 +717,17 @@ seurat_raw@meta.data$Filter <- ifelse(seurat_raw@meta.data$nCount_RNA < nCount_R
                                       "Remove", 
                                       seurat_raw@meta.data$Filter)
 
+
 if (isTRUE(params$doublet_filter)) { 
     seurat_raw@meta.data$Filter <-  ifelse(seurat_raw@meta.data$hybrid_call=="eDoublet",
                                            "Remove", 
                                             seurat_raw@meta.data$Filter)
- 
 }
 
 if (isTRUE(params$decontamX_filter)) { 
-    seurat_raw@meta.data$Filter <-  ifelse(seurat_raw@meta.data$contam_status=="Ambient",
+     seurat_raw@meta.data$Filter <- ifelse(seurat_raw@meta.data$contam_status=="Ambient",
                                            "Remove", 
                                             seurat_raw@meta.data$Filter)
- 
 }
 
 
@@ -714,6 +751,7 @@ p2 <- p2 + scale_color_manual(values=keep_remove.cols)
 
 p3 <- ggplot(data=seurat_raw@meta.data, aes(x=percent.mt, y=nCount_RNA, color=Filter))
 p3 <- p3 + geom_point() + geom_vline(xintercept = percent.mt.ul) + geom_hline(yintercept=nCount_RNA.ul)
+p3 <- p3 + geom_hline(yintercept=nCount_RNA.ll)
 p3 <- p3 + theme_sara()
 p3 <- p3 + scale_color_manual(values=keep_remove.cols)
 
@@ -727,12 +765,12 @@ prow <- cowplot::plot_grid(p1 + theme(legend.position="none"),
                            hjust = -1,
                            nrow = 1)
 cowplot::plot_grid(prow, legend, rel_widths = c(4, .6))
-
 ```
 
 
 ```{r filter-seurat}
-seurat <- subset(seurat_raw, subset=`Filter`=="Keep")
+Idents(seurat_raw) <- seurat_raw@meta.data$orig.ident
+seurat <- subset(seurat_raw, subset=Filter=="Keep")
 ```
 
 
@@ -794,19 +832,19 @@ prow <- cowplot::plot_grid(p1,
 cowplot::plot_grid(prow, rel_widths = c(4, .4))
 ```
 
-### Point Density
-```{r, plot-density-2, fig.width=6, fig.height=5.5}
-p <- ggplot(data=seurat@meta.data, aes(x=nCount_RNA, y=nFeature_RNA))
-p <- p + geom_pointdensity()
-p <- p + scale_color_nord(palette="lumina", discrete=FALSE, reverse=TRUE)
-p
-```
-
-
 ## Inspect samples after filtering
 
+```{r, include=FALSE}
+ns <- length(sample.cols)
+if (ns > 25) {
+  fw <- 12
+} else {
+  fw <- 8
+}
+```
+
 Look for outlier samples to make note of.
-```{r, plot-postfilter-stat, fig.width=8, fig.height=8}
+```{r, plot-postfilter-stat, fig.width=fw, fig.height=8}
 meta.df <- as.data.table(seurat@meta.data)
 summary.df <- meta.df %>% 
               dplyr::group_by(SampleID) %>% 
@@ -816,43 +854,48 @@ summary.df <- meta.df %>%
                                median_percentMT=median(percent.mt, na.rm=TRUE))
 setDT(summary.df)
 summary.melt.df <- data.table::melt(summary.df, id.vars="SampleID")
-p1 <- ggplot(data=meta.df, aes(x=reorder(SampleID, -nFeature_RNA), y=nFeature_RNA, fill=SampleID))
-p1 <- p1 + geom_boxplot()
+setorder(summary.df, n)
+x.ord <- summary.df$SampleID
+
+p1 <- ggplot(data=summary.df, aes(x=SampleID, y=n, fill=SampleID))
+p1 <- p1 + geom_bar(stat="identity", color="black")
 p1 <- p1 + scale_fill_manual(values=sample.cols)
 p1 <- p1 + theme_sara_90() + theme(axis.text=element_text(size=9), axis.title.x = element_blank(), axis.title.y=element_text(size=11))
-p1 <- p1 + labs(y="Number of Genes (nFeature_RNA)")
+p1 <- p1 + scale_x_discrete(limits=x.ord)
+p1 <- p1 + labs(y="Number of cells")
 
-p2 <- ggplot(data=summary.df, aes(x=reorder(SampleID, -n), y=n, fill=SampleID))
-p2 <- p2 + geom_bar(stat="identity", color="black")
+p2 <- ggplot(data=meta.df, aes(x=SampleID, y=nFeature_RNA, fill=SampleID))
+p2 <- p2 + geom_boxplot()
 p2 <- p2 + scale_fill_manual(values=sample.cols)
 p2 <- p2 + theme_sara_90() + theme(axis.text=element_text(size=9), axis.title.x = element_blank(), axis.title.y=element_text(size=11))
-p2 <- p2 + labs(y="Number of cells")
+p2 <- p2 + scale_x_discrete(limits=x.ord)
+p2 <- p2 + labs(y="Number of Genes (nFeature_RNA)")
 
-
-p3 <- ggplot(data=meta.df, aes(x=reorder(SampleID, -nCount_RNA), y=nCount_RNA, fill=SampleID))
+p3 <- ggplot(data=meta.df, aes(x=SampleID, y=nCount_RNA, fill=SampleID))
 p3 <- p3 + geom_boxplot()
 p3 <- p3 + scale_fill_manual(values=sample.cols)
 p3 <- p3 + theme_sara_90() + theme(axis.text=element_text(size=9), axis.title.x = element_blank(), axis.title.y=element_text(size=11))
-p3 <- p3 + labs(y="Number of UMIs (nCount_RNA")
+p3 <- p3 + scale_x_discrete(limits=x.ord)
+p3 <- p3 + labs(y="Number of UMIs (nCount_RNA)")
 
-
-p4 <- ggplot(data=meta.df, aes(x=reorder(SampleID, -percent.mt), y=percent.mt, fill=SampleID))
+p4 <- ggplot(data=meta.df, aes(x=SampleID, y=percent.mt, fill=SampleID))
 p4 <- p4 + geom_boxplot()
 p4 <- p4 + scale_fill_manual(values=sample.cols)
 p4 <- p4 + theme_sara_90() + theme(axis.text=element_text(size=9), 
                                    axis.title.x = element_blank(), axis.title.y=element_text(size=11))
+p4 <- p4 + scale_x_discrete(limits=x.ord)
 p4 <- p4 + labs(y="Percentage MT")
 
 #legend <- cowplot::get_legend(p2 + theme(legend.box.margin = margin(0, 0, 0, 12)))
 
-cowplot::plot_grid(p2 + theme(legend.position="none"),
-                           p1 + theme(legend.position="none"),
-                           p3 + theme(legend.position="none"),
-                           p4 + theme(legend.position="none"),
-                           align = 'vh',
-                           labels = c("A", "B", "C", "D"),
-                           hjust = -1,
-                           nrow = 2)
+cowplot::plot_grid(p1 + theme(legend.position="none"),
+                   p2 + theme(legend.position="none"),
+                   p3 + theme(legend.position="none"),
+                   p4 + theme(legend.position="none"),
+                   align = 'vh',
+                   labels = c("A", "B", "C", "D"),
+                   hjust = -1,
+                   nrow = 2)
 
 ```
 
@@ -1237,37 +1280,6 @@ seurat <- seurat[,-prune]
 
 ```
 
-```{r, sub-cell-types}
-if ("HPCA" %in% params$anno_db) {
-  seurat@meta.data$SingleR_HPCA <- as.character(seurat@meta.data$SingleR_HPCA)
-  seurat@meta.data$SingleR_HPCA <- if_else(seurat@meta.data$SingleR_HPCA=="Pre-B_cell_CD34-", 
-                                           "B_cell",
-                                           seurat@meta.data$SingleR_HPCA)
-  seurat@meta.data$SingleR_HPCA <- if_else(seurat@meta.data$SingleR_HPCA=="Pro-B_cell_CD34+", 
-                                           "B_cell",
-                                           seurat@meta.data$SingleR_HPCA)
-} 
-
-if ("hpca" %in% params$anno_db) {
-      seurat@meta.data$SingleR_hpca <- as.character(seurat@meta.data$SingleR_hpca)
-      seurat@meta.data$SingleR_hpca <- if_else(seurat@meta.data$SingleR_hpca=="Pre-B_cell_CD34-", 
-                                               "B_cell",
-                                                seurat@meta.data$SingleR_hpca)
-      seurat@meta.data$SingleR_hpca <- if_else(seurat@meta.data$SingleR_hpca=="Pro-B_cell_CD34+", 
-                                               "B_cell",
-                                                seurat@meta.data$SingleR_hpca)
-    
-}
-
-if ("ImmGen" %in% params$anno_db) {
-    seurat@meta.data$SingleR_ImmGen <- as.character(seurat@meta.data$SingleR_ImmGen)
-    seurat@meta.data$SingleR_ImmGen <- if_else(seurat@meta.data$SingleR_ImmGen=="B cells, pro", 
-                                               "B cells",
-                                                seurat@meta.data$SingleR_ImmGen)
-}
-```
-
-
 ```{r merge-cell-types}
 SingleR_names <- paste0("SingleR_", names(cells.list))
 names(SingleR_names) <- SingleR_names
@@ -1293,6 +1305,43 @@ for (a in SingleR_names) {
 
 ```
 
+```{r, sub-cell-types}
+if ("HPCA" %in% params$anno_db) {
+  seurat@meta.data$SingleR_HPCA <- as.factor(seurat@meta.data$SingleR_HPCA)
+  seurat@meta.data$SingleR_HPCA <- forcats::fct_collapse(seurat@meta.data$SingleR_HPCA, 
+                                                         B_cell=c("B_cell", "Pro-B_cell_CD34+", "Pre-B_cell_CD34-"),
+                                                         Others=c("Others", "Embryonic_stem_cells", "GMP",
+                                                                  "Hepatocytes", "iPS_cells", "Keratinocytes",
+                                                                  "MSC", "Neuroepithelial_cell", "Neurons"),
+                                                         HSC=c("HSC_-G-CSF", "HSC_CD34+"),
+                                                         Fibroblasts=c("Fibroblasts", "Chondrocytes",
+                                                                       "Smooth_muscle_cells",
+                                                                       "Tissue_stem_cells"),
+                                                         Myelocyte=c("Myelocyte", "Pro-Myelocyte"))
+    
+}
+if ("hpca" %in% params$anno_db) {
+ seurat@meta.data$SingleR_hpca <- as.factor(seurat@meta.data$SingleR_hpca)
+  seurat@meta.data$SingleR_hpca <- forcats::fct_collapse(seurat@meta.data$SingleR_hpca, 
+                                                         B_cell=c("B_cell", "Pro-B_cell_CD34+", "Pre-B_cell_CD34-"),
+                                                         Others=c("Others", "Embryonic_stem_cells", "GMP",
+                                                                  "Hepatocytes", "iPS_cells", "Keratinocytes",
+                                                                  "MSC", "Neuroepithelial_cell", "Neurons"),
+                                                         HSC=c("HSC_-G-CSF", "HSC_CD34+"),
+                                                         Fibroblasts=c("Fibroblasts", "Chondrocytes",
+                                                                       "Smooth_muscle_cells",
+                                                                       "Tissue_stem_cells"),
+                                                          Myelocyte=c("Myelocyte", "Pro-Myelocyte"))
+}
+if ("ImmGen" %in% params$anno_db) {
+    seurat@meta.data$SingleR_ImmGen <- as.character(seurat@meta.data$SingleR_ImmGen)
+    seurat@meta.data$SingleR_ImmGen <- if_else(seurat@meta.data$SingleR_ImmGen=="B cells, pro", 
+                                               "B cells",
+                                                seurat@meta.data$SingleR_ImmGen)
+}
+```
+
+
 ### Pie chart
 Frequency of different cell types
 
@@ -1304,9 +1353,8 @@ dt <- dat[, .N, by=ann]
 dt <- dt[order(dt[[ann]]),]
 
 
-if (ann=="SingleR_ImmGen") {
-  pref_ann.cols <- ref.cols[["SingleR_ImmGen"]]
-  pref_ann.cols <- pref_ann.cols[names(pref_ann.cols) %chin% levels(as.factor(seurat@meta.data$SingleR_ImmGen))]
+if (ann %chin% names(ref.cols)) {
+  pref_ann.cols <- ref.cols[[ann]]
 } else {
   pref_ann.cols <- colorRampPalette(pals::watlington(n=16))(nrow(dt))
   names(pref_ann.cols) <- dt[[ann]]
@@ -1500,11 +1548,12 @@ Look for cells to be clustered well by cell type.
 #### Top annotation
 A UMAP of top annotation shows how well the clusters and annotation match up.
 ```{r, umap-ann-top, fig.width=7, fig.height=5}
-if (top_ann == pref_ann) {
-  top_ann.cols <- pref_ann.cols
+if (top_ann %chin% names(ref.cols)) {
+  top_ann.cols <- ref.cols[[top_ann]]
 } else {
-  top_ann.cols <- colorRampPalette(pals::alphabet(n=26))(length(levels(as.factor(seurat@meta.data[[top_ann]]))))
-  names(top_ann.cols) <- levels(as.factor(seurat@meta.data[[top_ann]]))
+   top_ann.cols <- colorRampPalette(pals::alphabet2(n=26))(nrow(dt))
+   names(top_ann.cols) <- levels(as.factor(seurat@meta.data[[top_ann]]))
+
 }
 
 p <- DimPlot(seurat, group.by=top_ann) 
@@ -1782,30 +1831,39 @@ ComplexHeatmap::Heatmap(tab,
 ## Cell metrics effects
 
 First we will look at the UMAP for visual inspection.  Extremely low or high UMI/genes in a cluster or high percent.mt in a cluster may be problematic.
-```{r, fplot-2, fig.width=10, fig.height=5}
+```{r, fplot-2, fig.width=10, fig.height=9}
 
-p.list <- FeaturePlot(seurat, features=features, order=TRUE, combine=FALSE)
-
-for (i in 1:length(p.list)) {
-  p <- p.list[[i]]
-  p <- p + theme_sara() 
-  p <- p + scale_color_viridis_c(option="rocket", direction=-1)
+feature_plot <- function(seurat, feature) {
+  p <- ggplot(data=as.data.frame(seurat@reductions$umap@cell.embeddings), 
+              aes(x=UMAP_1, y=UMAP_2, 
+                  color=seurat@meta.data[[feature]]))
+  p <- p + geom_point(size=0.1)
+  p <- p + theme_sara()
+  if(feature == "percent.mt") {
+      p <- p + scale_color_viridis_c(option="rocket", 
+                                 direction=-1)
+  } else {
+    p <- p + scale_color_viridis_c(option="rocket", 
+                                 direction=-1,
+                                 labels=scales::label_scientific())
+  }
   p <- p + theme(axis.title.y.right = element_blank(),
-                 legend.position="bottom")
-  p <- p + labs(title=features[[i]])
-  p.list[[i]] <- p
+                 legend.position="right",
+                 legend.title=element_blank())
+  p <- p + labs(title=feature)
+return(p)
 }
 
-p <- p.list[["nCount_RNA"]]
-p <- p + scale_color_continuous(labels = scales::scientific)
-p.list[["nCount_RNA"]] <- p
+p.list <- sapply(names(features), 
+                 function(feature) feature_plot(seurat, feature),
+                 simplify=FALSE, USE.NAMES=TRUE)
 
 cowplot::plot_grid(plotlist=p.list,
                    align="vh",
                    labels="AUTO",
                    label_size=12,
-                   ncol=3,
-                   nrow=1)
+                   ncol=2,
+                   nrow=2)
 ```
 
 ### Cell metrics ridgeplots {.tabset} 
@@ -1906,6 +1964,7 @@ Assessing the clusters will help us determine if there are any clusters  prone t
 ```{r dbl-ridge1, eval=dbl_dtct, fig.width=8, fig.height=6}
 p4 <- RidgePlot(seurat, group.by=top_clust_res, features="hybrid_score", sort=TRUE)
 p4 <- p4 + scale_fill_manual(values=top_clust.cols)
+p4
 ```
 
 ### Heatmap
@@ -2036,14 +2095,14 @@ Section below will only be evaluated if decontamination detection occurred.  It 
 
 ### Decontamination percent
 ```{r, fplot-decontx, fig.width=8, fig.height=6, eval=dcx_dtct}
- p <- FeaturePlot(seurat, features="decontX_contamination") 
+p <- FeaturePlot(seurat, features="decontX_contamination") 
 p <- p + scale_color_viridis_c(option="rocket", direction=-1)
 p <- p + theme_sara()
 p
 ```
 
 ### Decontamination threshold
-A threshold of <mark>params$decontamX_thresh</mark> was utilized.
+A threshold of <mark>`r params$decontamX_thresh`</mark> was utilized.
 ```{r, dimplot-decontx, fig.width=8, fig.height=6, eval=dcx_dtct}
 p <- DimPlot(seurat, group.by="contam_status") 
 p <- p + theme_sara()
@@ -2061,6 +2120,7 @@ Assessing the clusters will help us determine if there are any clusters prone to
 ```{r dcx-ridge1, eval=dcx_dtct, fig.width=8, fig.height=6}
 p4 <- RidgePlot(seurat, group.by=top_clust_res, features="decontX_contamination", sort=TRUE)
 p4 <- p4 + scale_fill_manual(values=top_clust.cols)
+p4
 ```
 
 ### Heatmap
@@ -2183,34 +2243,101 @@ p
 ```
 
 # Covariate analysis
-If experiment metadata was provided, it will be utilized here in the <mark> getVarianceExplained</mark> function from <mark>scater</mark>.  **This utility is not yet supported**.
-```{r add-meta-seurat, eval=FALSE} 
-#eval=params$exp_metadata}
+If experiment metadata was provided, it will be utilized here.  Median PC loading for all cells per sample will be calculated for the first 15 PCs.  An ANOVA (Kruskal-Wallis rank sum test) will be performed with categorical variables and a glm will be performed on all numeric variables. Nominal p-values are shown.
+
+```{r, meta-prepare, eval=cov_analysis}
 metadata.df <- as.data.frame(data.table::fread(params$exp_metadata))
+metadata.df$SampleID <- metadata.df[[params$sample_id]]
 names(metadata.df) <- janitor::make_clean_names(names(metadata.df))
 setnames(metadata.df, "sample_id", "SampleID")
-var <- names(metadata.df)
-var <- var[!names(metadata.df) %chin% c(params$sample_id, "SampleID")]
-var <- c(var, features, "hybrid_score", "cxds_score", "bcds_score")
+meta_var <- names(metadata.df)[!names(metadata.df) %chin% c(params$sample_id, "SampleID")]
 
-# Add metadata
-sce <- as.SingleCellExperiment(seurat)
-cdata <- as.data.frame(colData(sce))
-cdata$cell_id <- rownames(cdata)
-cdata <- merge(cdata, metadata.df, by="SampleID")
-cdata <- DataFrame(cdata, row.names=cdata$cell_id)
-colData(sce) <- cdata
-sce <- scater::logNormCounts(sce) 
-sce <- runPCA(sce)
-sce <- scuttle::addPerCellQCMetrics(sce)
+# For testing
+#cluster_algs <- c("Louvain")
+#top_clust_res <- "Louvain2_0.15"
+#pref_ann <- "SingleR_ImmGen"
 
-var.pc <- getExplanatoryPCs(sce, BPPARAM=MulticoreParam())
+# For use
+cluster_algs <- params$cluster_algorithm
 
-#Calculate and plot
-var.mat <- scater::getVarianceExplained(sce, 
-                                        variables=cdata,
-                                        BPPARAM=MulticoreParam())
-scater::plotExplanatoryVariables(var.mat)
+seur.meta <- as.data.frame(seurat@meta.data)
+seur.meta$Clusters <- seur.meta[top_clust_res]
+seur_var <- names(seur.meta)
+seur_var <- seur_var[grep("ident|pruned|rmv|Filter|seurat_clusters", seur_var, invert=TRUE)]
+seur_var <- seur_var[!seur_var %like% cluster_algs]
+covariates <- c(meta_var, seur_var)
+seur.meta <- seur.meta %>% dplyr::select(dplyr::all_of(seur_var))
+setnames(seur.meta, c("S.Score", "G2M.Score"), c("s_score", "g2m_score"))
+
+all.meta <- merge(seur.meta, metadata.df, by="SampleID")
+all.meta$rn <- rownames(seur.meta)
+```
+
+```{r covariate-functions, eval=cov_analysis}
+covariate_PCA_analysis <- function(seurat, metadata, numPCs, covariates) {
+  covariate.types <- sapply(metadata, class)
+  covariate.types <- gsub("character", "factor", covariate.types)
+  covariate.types <- covariate.types[names(covariate.types) %chin% covariates]
+  cat_var <- covariate.types[grep("factor", covariate.types)]
+  cat_var <- cat_var[grep("rn", names(cat_var), invert=TRUE)]
+  num_var <- covariate.types[grep("factor", covariate.types, invert=TRUE)]
+  pca.df <- as.data.frame(seurat@reductions$pca@cell.embeddings)[,1:numPCs]
+  pca.df$rn <- rownames(pca.df)
+  sample.df <- metadata[, c("rn", "SampleID")]
+  pca.df <- merge(pca.df, sample.df, by="rn", all.x=TRUE, all.y=FALSE)
+  pca.df$rn <- NULL
+  median.df <- pca.df %>% 
+                     dplyr::group_by(SampleID) %>%
+                     summarize_all(list(median), na.rm=TRUE)
+  pca_meta.df <- merge(median.df, metadata, by="SampleID", all.x=TRUE, all.y=FALSE)
+  pca_meta.df <- pca_meta.df[!duplicated(pca_meta.df$SampleID),]
+  endCol <- length(names(pca_meta.df))
+  ann.df <- pca_meta.df[,1:numPCs+1]
+  anova_p.list <- sapply(names(cat_var), 
+                            function(f) apply(ann.df, 
+                                              2, 
+                                              function(x) kruskal.test(x ~ pca_meta.df[[f]])$p.value),
+                         simplify=FALSE, USE.NAMES = TRUE)
+  anova_res.pval <- plyr::ldply(anova_p.list, .id="Factor")
+  
+  
+  glm_p.list <- sapply(names(num_var), 
+                            function(f) apply(ann.df, 
+                                              2, 
+                                              function(x) summary(glm(x ~ as.numeric(pca_meta.df[[f]])))$coefficients[2,4]),
+                         simplify=FALSE, USE.NAMES = TRUE)
+  glm_res.pval <- plyr::ldply(glm_p.list, .id="Factor")
+  results <- rbindlist(list(glm_res.pval, anova_res.pval))
+  return(results)
+}
+```
+
+```{r, meta-analysis, eval=cov_analysis}
+covariate.results <- covariate_PCA_analysis(seurat=seurat, 
+                                        metadata=all.meta, 
+                                        numPCs=15, 
+                                        covariates=meta_var)
+```
+
+```{r meta-plot, fig.height=8, fig.width=10, eval=cov_analysis}
+cov.melt <- data.table::melt(covariate.results, 
+                             id.vars=c("Factor"),
+                             variable.name="PC",
+                             value="pvalue")
+cov.melt$PC <- gsub("_", "", cov.melt$PC)
+cov.melt$PC_x <- gsub("PC", "", cov.melt$PC)
+cov.melt$PC_x <- as.numeric(cov.melt$PC_x)
+cov.melt$Significance <- ifelse(cov.melt$pvalue <= 0.05, "SIG", NA)
+p <- ggplot(cov.melt, aes(x=PC_x, y=Factor, fill=-log10(pvalue), color=Significance))
+p <- p + geom_tile(color="white")
+p <- p + geom_point(pch=8, size=2)
+p <- p + scale_fill_viridis_c(option="rocket", direction=-1)
+p <- p + scale_color_manual(values=c(`SIG`="yellow"), na.value=NA)
+p <- p + scale_x_discrete(breaks=c(seq(1,15)), limits=c(seq(1,15)))
+p <- p + theme_minimal()
+p <- p + theme(axis.title=element_blank(),
+               axis.text=element_text(color="black", size=11))
+p
 ```
 
 ```{r st}
