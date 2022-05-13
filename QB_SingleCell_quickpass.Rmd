@@ -3,7 +3,7 @@ title: "QuantBio Single-cell RNA-Seq Exploratory analysis"
 author: "Jen Modliszewski, Ph.D | QuantBio, LLC"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output: 
-  rmdformats::downcute:
+  rmdformats::readthedown: 
       self_contained: true
       thumbnails: false
       lightbox: true
@@ -11,9 +11,10 @@ output:
       highlight: kate
       toc_float: yes
       code_folding: hide
+      toc_depth: 5
 params:
   parallel: multicore # <multicore | serial> # parameter setting for BiocParallel computing. see ?MulticoreParam() or ?SerialParam
-  seurat_raw: "./Seurat_Liver_Zheng.rds"
+  seurat_raw: "C:/Users/rosah/Dropbox (QuantBio LLC)/QB_shared/Reports/Kirschlab/Chang_scRNA_Seq/processedData/singlecell_RNAseq-Su_7142_210727B6_raw.rds"
   seurat_processed: "seurat.rds" # see render file
   organism: human # < human | mouse >
   sample_id: Donor 
@@ -36,23 +37,35 @@ params:
   cluster_resolution: [0.15, 0.2, 0.5, 0.8, 1.1, 1.4] # bracketed list
   anno_db: ["HPCA"] # < HPCA | hpca | ImmGen > bracketed list, hpca is for case when organism=mouse and is to indicate mouse gene conversion via lowercase, HPCA for mouse utilizes biomart file
   pref_ann: HPCA # potentially same as anno_db
-  biomart_rds: "./../processedData/h2m_biomart.rds"
+  biomart_rds: "h2m_biomart.rds"
   ann_collapse_n: 10 # recommended to set to 10-20 when downsampling or 100-200 when downsample=FALSE, cell categories with n < this value will be collapsed to "Others"
   downsample: true # boolean, whether or not to downsample cells (default=TRUE)
   downsample_cells: 20000 # Number of cells to downsample to, default=20k, ignored if downsample=FALSE
-  exp_metadata: "./../rawData/scRNAseq_metadata_clean.csv" # all column names other than SampleIDs will be utilized for covariate analysis, please clean a priori, names will be further cleaned via janitor
+  exp_metadata: "C:/Users/rosah/Downloads/scRNAseq_metadata_clean.csv" # all column names other than SampleIDs will be utilized for covariate analysis, please clean a priori, names will be further cleaned via janitor
 ---
 
-<style>
-mark {
-  background-color: #EED5D2;
-  color: black;
-  border: 1px solid #EED5D2;
-  border-radius: 5px;
-  font-family: monospace;
-  
+```{css my-header-colors, echo = FALSE}
+#sidebar {
+  background: black;
 }
-</style>
+#postamble {
+  background: orange;
+  border-top:solid 10px gray;
+}
+.title {
+  text-align: center;
+  color: orange;
+}
+.subtitle {
+  color: orange;
+}
+h1, h2, h3, h4, h5, h6, legend {
+  color: orange;
+}
+#content h2 {
+    background-color: gray;
+}
+```  
 
 ```{r, eval=FALSE, include=FALSE, echo=FALSE}
 # TO-DO 
