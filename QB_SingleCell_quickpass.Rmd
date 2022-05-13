@@ -14,7 +14,7 @@ output:
       toc_depth: 5
 params:
   parallel: multicore # <multicore | serial> # parameter setting for BiocParallel computing. see ?MulticoreParam() or ?SerialParam
-  seurat_raw: "C:/Users/rosah/Dropbox (QuantBio LLC)/QB_shared/Reports/Kirschlab/Chang_scRNA_Seq/processedData/singlecell_RNAseq-Su_7142_210727B6_raw.rds"
+  seurat_raw:  "./Seurat_Liver_Zheng.rds"
   seurat_processed: "seurat.rds" # see render file
   organism: human # < human | mouse >
   sample_id: Donor 
@@ -41,7 +41,7 @@ params:
   ann_collapse_n: 10 # recommended to set to 10-20 when downsampling or 100-200 when downsample=FALSE, cell categories with n < this value will be collapsed to "Others"
   downsample: true # boolean, whether or not to downsample cells (default=TRUE)
   downsample_cells: 20000 # Number of cells to downsample to, default=20k, ignored if downsample=FALSE
-  exp_metadata: "C:/Users/rosah/Downloads/scRNAseq_metadata_clean.csv" # all column names other than SampleIDs will be utilized for covariate analysis, please clean a priori, names will be further cleaned via janitor
+  exp_metadata: "./scRNAseq_metadata_clean.csv" # all column names other than SampleIDs will be utilized for covariate analysis, please clean a priori, names will be further cleaned via janitor
 ---
 
 ```{css my-header-colors, echo = FALSE}
