@@ -8,7 +8,8 @@ output:
     thumbnails: false
     lightbox: true
     gallery: false
-    highlight: tango
+    highlight: kate
+    toc_float: yes
     code_folding: hide
     fig_width: 10
     fig_height: 10
@@ -16,8 +17,8 @@ output:
 params:
   analysed_dataset: "Example"
   more_authors: "Rosa Hernansaiz, Vincent Perez, and Jen Modliszewski"
-  dir_seurat: "Seurat_Breast_Bassez1_MINIATURE.rds"
-
+  dir_seurat: "seurat_object.rds"
+  
 #---------------------QUALITY CONTROL AND STANDARDIZATION-----------------------
   QCS: true
   organism: "human" # Organism used in the experiment
@@ -26,7 +27,7 @@ params:
   qcs_vars_regress: ["nCount_RNA", "percent.mt"] # Variables to regress out
   qcs_ncells: 1 # Lowest number of cells that express a gene before pruning the gene
   qcs_nfeatures: 1 # Lowest number of genes in a cell before pruning a cell
-  qcs_patient_id: "patient_id" # This will change depending on the experiment
+  qcs_patient_id: "patient" # This will change depending on the experiment
   qcs_count_cutoff: "NA" # Numerical value to set for the sample-level nFeature_RNA
   qcs_feature_cutoff: "NA" # Numerical value to set for sample-level nCount_RNA
   qcs_mt_cutoff: "NA" # Numerical value to set for sample-level mt.percent
@@ -57,6 +58,30 @@ params:
   dex_save_file: "Seurat_DEx.rds" # Name of the file to write new seurat object in
   dex_mat_save_file: "DEx_mat.csv" # Name of the file to write the DE gene list as
 ---
+
+```{css my-header-colors, echo = FALSE}
+#sidebar {
+  background: black;
+}
+#postamble {
+  background: orange;
+  border-top:solid 10px gray;
+}
+.title {
+  text-align: center;
+  color: orange;
+}
+.subtitle {
+  color: orange;
+}
+h1, h2, h3, h4, h5, h6, legend {
+  color: orange;
+}
+#content h2 {
+    background-color: gray;
+}
+```  
+
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE}
 options(knitr.duplicate.label = 'allow')
