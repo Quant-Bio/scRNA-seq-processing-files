@@ -31,7 +31,7 @@ params:
   qcs_feature_cutoff: "NA" # Numerical value to set for sample-level nCount_RNA
   qcs_mt_cutoff: "NA" # Numerical value to set for sample-level mt.percent
   qcs_cc: true # Set true if you want to add cell cycle phase for each cell to metadata
-  qcs_save_file: "Seurat_QCS.rds" # Name of the file to write new seurat object as
+  qcs_save_file:  "Seurat_QCS.rds" # Name of the file to write new seurat object as
 
 #------------------ANNOTATE THE CELLS WITH TYPE AND PHASE-----------------------
   ANNO: true # Set true to annotate the seurat object with cell types
@@ -42,7 +42,7 @@ params:
   anno_Bcells: ["Pro-B_cell_CD34+","Pre-B_cell_CD34-","B_cell"] # These cells are collapsed into B cells
   anno_HCS: ["HSC_-G-CSF","HSC_CD34+"] # These cells are collapsed into HSC cells
   anno_fibroblast: ["Fibroblasts", "Chondrocytes","Smooth_muscle_cells","Tissue_stem_cells"] # These cells are collapsed into fibroblasts
-  anno_save_file: "Seurat_annotated.rds" # Name of the file to write new seurat object
+  anno_save_file:  "Seurat_annotated.rds" # Name of the file to write new seurat object
   
 #------------------CLUSTERING AND DIFFERNTIAL EXPRESSION------------------------
   DEx: true # Set true if you want to run differential expression
