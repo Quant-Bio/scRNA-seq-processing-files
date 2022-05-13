@@ -3,21 +3,19 @@ title: "Single cell analysis: `r params$analysed_dataset`"
 date: "Analysed on `r format(Sys.time(), '%B %d, %Y')`"
 author: "QuantBio `r params$more_authors`"
 output:
-  rmdformats::downcute:
-    self_contained: true
-    thumbnails: false
-    lightbox: true
-    gallery: false
-    highlight: kate
-    toc_float: yes
-    code_folding: hide
-    fig_width: 10
-    fig_height: 10
-    toc_depth: 5
+  rmdformats::readthedown: 
+      self_contained: true
+      thumbnails: false
+      lightbox: true
+      gallery: false
+      highlight: kate
+      toc_float: yes
+      code_folding: hide
+      toc_depth: 5
 params:
   analysed_dataset: "Example"
   more_authors: "Rosa Hernansaiz, Vincent Perez, and Jen Modliszewski"
-  dir_seurat: "seurat_object.rds"
+  dir_seurat: "C:/Users/rosah/Dropbox (QuantBio LLC)/QB_shared/RESOURCES/scRNA-seq/Kidney_Obradovic_2021/Seurat_kidney_cd45pos_merged.rds"
   
 #---------------------QUALITY CONTROL AND STANDARDIZATION-----------------------
   QCS: true
