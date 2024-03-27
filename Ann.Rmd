@@ -2,55 +2,29 @@
 ```{r setup, include=FALSE, echo=FALSE, include=FALSE}
 ### Set knitr global options
 knitr::opts_chunk$set(warning=FALSE, message=FALSE)
-
-### Load libraries
-library(data.table)
-library(SingleR)
-library(Seurat)
-library(glmnet)
-library(forcats)
-# library(infercnv)
-library(biomaRt)
-library(plyr)
-library(ggplot2)
-library(janitor)
-library(BiocParallel)
-library(readr)
-library(celldex)
-library(viridis)
-library(pheatmap)
-require(styler)
-
-theme_sara <- function() {
-  theme_bw(base_size=14)+
-    theme(axis.text=element_text(color="black"),
-          panel.background=element_rect(color="black"),
-          strip.text = element_text(size=12),
-          strip.background = element_rect(fill="white"))
-}
 ```
 
 ```{r, echo = FALSE, include = FALSE}
-if(!exists("seurat_analysed")){
-  seurat_analysed = readRDS(params$qcs_save_file)
+if(!exists("seurats")){
+  seurats = readRDS(params$qcs_save_name)
 }
 ```
 
 ## 2.1 - Annotate with singleR
 
 ```{r, include=FALSE}
-anno_sigleR_text = paste0("Reference data are load with Ensembl annotations.
+anno_singleR_text = paste0("Reference data are load with Ensembl annotations.
 `ensembl = F` indicates to not convert row names to ensembl IDs.
 The selected annotation package is ", params$anno_annotation)
 
-if(!as.logical(params$anno_sigleR)){
-  anno_sigleR_text = "> **_NOTE:_** The file has been already labeled by QuantBio with SingleR, and QC checks have been performed on the annotations. This step has been skipped."
+if(!as.logical(params$anno_singleR)){
+  anno_singleR_text = "> **_NOTE:_** The file has been already labeled by QuantBio with SingleR, and QC checks have been performed on the annotations. This step has been skipped."
 }
 ```
-`r anno_sigleR_text`
 
-```{r anno_singleR, tidy='styler', tidy.opts=list(strict=FALSE), eval = params$anno_sigleR}
+This section is **code only**. `r anno_singleR_text`
 
+```{r anno_singleR, tidy='styler', tidy.opts=list(strict=FALSE), eval = params$anno_singleR}
 if(params$anno_annotation == "HumanAtlas"){
   ref.data <- HumanPrimaryCellAtlasData(ensembl=FALSE)   
 }else if(params$anno_annotation == "ImmGenData"){
@@ -58,20 +32,24 @@ if(params$anno_annotation == "HumanAtlas"){
 }
 
 
-
-
 ### Assign the cell types. For this step, I'm parellelizing it with 
 ### the BiocParallel library. Parallelizing may not be necessary or helpful,
 ### but its here. 
-cells <- SingleR(test=seurat_analysed@assays[["RNA"]]@data,
+cells <- lapply(X=seurats, FUN=function(x) {
+    SingleR(test=LayerData(x, assay = "RNA", layer = "counts"),
                  ref=ref.data, labels=ref.data$label.main,
                  BPPARAM=MulticoreParam(detectCores())) 
+})
 
 ### Add to seurat
-seurat_analysed@meta.data$SingleR <- cells$labels
+for(i in 1:length(seurats)) {
+    seurats[[i]]$SingleR <- cells[[i]]$labels
+}
 ```
 
-## 2.2 - Perform QC checks on new cell labels
+## 2.2 - Perform QC checks on new cell labels {.tabset .tabset-pils}
+
+### 1 - Heatmap before pruning {.tabset .tabset-pils}
 
 Here we prune out cell labels with low quality cell-type-assignment.
 Low delta values are caused by:
@@ -81,70 +59,164 @@ Low delta values are caused by:
 
 We first check the scores and the number of low-quality labels
 
-```{r anno_qc1, fig.height=8, fig.width = 10, fig.cap="All cell types identified and their scores (pre pruned)", fig.align='center', tidy='styler', tidy.opts=list(strict=FALSE), warning=FALSE}
-plotScoreHeatmap(cells)
+```{r anno_qc1, tidy='styler', tidy.opts=list(strict=FALSE), warning=FALSE,  fig.align='center',fig.height=8, fig.width = 10, fig.cap="All cell types identified and their scores (pre pruned)", eval = params$anno_singleR}
+### Generate a list of plots based on the above information
+plots<-list()
+for (i in 1:length(seurats)) {
+plotScoreHeatmap(cells[[i]], main = names(seurats[i]))
+}
+```
+<br>
+<br>
+
+### 2 - Delta score before pruning {.tabset .tabset-pils}
+
+```{r anno_qc2, results="asis",fig.height=10, fig.width = 10, warning=FALSE, fig.cap = "Number of low-quality labels per cell assignment (pre pruned)", fig.align='center', tidy='styler', tidy.opts=list(strict=FALSE), eval = params$anno_singleR}
+### Generate a list of plots based on the above information
+plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+        
+        plotDeltaDistribution(cells[[i]],
+                              ncol = 5,
+                              size=0.5) +
+            themes$QB_theme()+
+            ylab("Delta score") +
+            xlab("Cell labels") +
+            ggtitle(names(seurats[i]))
+
+        ,list(i = i)))
+    plots[[i]] <- p1  # add each plot into plot list
+}
+
+#### Plot it out
+for (i in 1:length(plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
 ```
 
-```{r anno_qc2, fig.height=8, fig.width = 10, warning=FALSE, fig.cap = "Number of low-quality labels per cell assignment (pre pruned)", fig.align='center', tidy='styler', tidy.opts=list(strict=FALSE)}
-plotDeltaDistribution(cells, 
-                      ncol = 5,
-                      size=0.5) +
-  theme_sara()+
-  ylab("Delta score") +
-  xlab("Cell labels")
+
+<br>
+<br>
+
+### 3 - Count of cells to be pruned {.tabset .tabset-pils}
+
+**Table of pruned cell counts:**
+
+```{r results = "asis", anno_qc3, tidy='styler', tidy.opts=list(strict=FALSE), eval=params$anno_singleR}
+tabs<-list()
+for(i in 1:length(cells)) {
+    tabs[[i]]<-table(table(is.na(cells[[i]]$pruned.labels)) |>
+        as.data.frame() |>
+        mutate(Group = names(seurats[i])) |>
+        dplyr::rename(Pruned = Var1, Count = Freq)) 
+    
+        tabs[[i]] <- as.data.frame(tabs[[i]]) |>
+        filter(Freq>0)|>
+        select(Group, Pruned, Count)
+        tabs[[i]] <- tabs[[i]] |> render_dt()
+            
+}
+
+
+#### Plot it
+for (i in 1:length(tabs)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- tabs[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
 
 ```
 
-```{r anno_qc3, tidy='styler', tidy.opts=list(strict=FALSE)}
-table(is.na(cells$pruned.labels)) %>%
-  as.data.frame() %>%
-  dplyr::rename(Pruned = Var1, Count = Freq) %>%
-  knitr::kable(.,
-             caption = "Count the cells that need to be pruned")
-```
+<br>
+<br>
 
-We prune **`r as.numeric(table(is.na(cells$pruned.labels))["TRUE"])` cells**.
-```{r tidy='styler', tidy.opts=list(strict=FALSE)}
+
+```{r tidy='styler', tidy.opts=list(strict=FALSE),eval=params$anno_singleR}
 ## Prune out the low-quality reads
-prune<-pruneScores(cells,
+prune<-list()
+keep<-list()
+for(i in 1:length(cells)){
+    prune[[i]]<-pruneScores(cells[[i]],
                    nmads = 3,
                    min.diff.med = -Inf,
                    min.diff.next = 0,
                    get.thresholds = FALSE
                    )
-
-prune<-which(prune=="TRUE")
-keep<-cells[-prune,]
+    prune[[i]]<-which(prune[[i]]=="TRUE")
+    keep[[i]]<-cells[[i]][-prune[[i]],]
+}
 ```
 
-```{r anno_qc1, fig.height=8, fig.width = 10, fig.cap="All cell types identified and their scores (after prune)", fig.align='center', warning=FALSE, message=FALSE, tidy='styler', tidy.opts=list(strict=FALSE)}
+### 4 - Heatmap after pruning
 
+```{r anno_qc1, fig.height=8, fig.width = 10, fig.cap="All cell types identified and their scores (after prune)", fig.align='center', warning=FALSE, message=FALSE, tidy='styler', tidy.opts=list(strict=FALSE),eval=params$anno_singleR}
 ### Re-plot to ensure prune worked
-plotScoreHeatmap(keep) 
+plots<-list()
+for (i in 1:length(seurats)) {
+plotScoreHeatmap(keep[[i]], main = names(seurats[i]))
+}
 ```
 
-```{r anno_qc2, fig.height=8, fig.width = 10, fig.align='center', fig.cap = "Number of low-quality labels per cell assignment (after prune)", warning=FALSE,  tidy='styler', tidy.opts=list(strict=FALSE)}
+<br>
+<br>
 
-plotDeltaDistribution(keep, 
-                      ncol = 5,
-                      size=0.5) +
-  theme_sara() +
-  ylab("Delta score") +
-  xlab("Cell labels")
+### 5 - Delta score after pruning {.tabset .tabset-pils}
+
+```{r anno_qc2, results="asis", fig.height=8, fig.width = 10, fig.align='center', fig.cap = "Number of low-quality labels per cell assignment (after prune)", warning=FALSE,  tidy='styler', tidy.opts=list(strict=FALSE),eval=params$anno_singleR}
+plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+        
+        plotDeltaDistribution(keep[[i]],
+                              ncol = 5,
+                              size=0.5) +
+            themes$QB_theme()+
+            ylab("Delta score") +
+            xlab("Cell labels") +
+            ggtitle(names(seurats[i]))
+
+        ,list(i = i)))
+    plots[[i]] <- p1  # add each plot into plot list
+}
+
+#### Plot it out
+for (i in 1:length(plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
 ```
 
-## 2.3 - Prune ambiguous cells
+<br>
+<br>
 
-```{r anno_pruned, tidy='styler', tidy.opts=list(strict=FALSE)}
+### 6 - Prune cells from seurat
+
+This section is **code only**.
+
+```{r anno_pruned, tidy='styler', tidy.opts=list(strict=FALSE),eval=FALSE}
 ### Prune the cells in the subsetted seurat objects
-seurat_analysed<-seurat_analysed[,-prune]
-
-### Convert to factor
-seurat_analysed@meta.data$SingleR <- factor(seurat_analysed@meta.data$SingleR)
-# levels(seurat_analysed@meta.data$SingleR)
+for(i in 1:length(seurats)){
+    seurats[[i]]<-seurats[[i]][,-prune[[i]]]
+    seurats[[i]]$SingleR <- factor(seurats[[i]]$SingleR)
+    }
 ```
+
+<br>
+<br>
 
 ## 2.4 - Merge similar cell types
+
+------------------------------------------------------------------------
 
 Merge ambiguous cell types into:
 
@@ -155,52 +227,81 @@ Merge ambiguous cell types into:
 
 If the cells are below **`r params$anno_cutoff`**, they are merge to "other". 
 
-***
 **NOTE:**
 
 Neurons are also added to this group because neurons aren't an anticipated cell type. 
 Also, if the cells are B or T, cell subtypes merge with B and T cells, respectively.
 
-***
 
-```{r merge_cell_types, tidy='styler', tidy.opts=list(strict=FALSE)}
+```{r merge_cell_types, tidy='styler', tidy.opts=list(strict=FALSE),eval=params$anno_singleR}
 ### So not to lose the low count b cell subtypes, collapse those first
-seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$SingleR,
-                                           B_cell = params$anno_BCell,
-                                           HSC = params$anno_HCS,
-                                           Fibroblasts = params$anno_fibroblast)
-
-freq<-data.frame(tabyl(seurat_analysed@meta.data$SingleR2, sort = TRUE))
-colnames(freq)<-c("cells","n","proportion")
-freq$percent<-freq$proportion*100
-freq<-freq[order(freq$n, decreasing = TRUE),]
-
-### I used the above "tabyl" function to get the proportion of cells out of 
-### all total cells in case we want to set a cut-off using a proportion rather
-### than total count. 
-others<-as.vector(freq$cells[which(freq$n<params$anno_cutoff)])
-
-seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$SingleR2,
-                                           Others=c(others,
-                                                    params$anno_Others))
-
-### Change the identity from tissue type to cell type 
-Idents(seurat_analysed)<-seurat_analysed@meta.data$SingleR2
+freqs<-list()
+others<-list()
+for(i in 1:length(seurats)){
+    seurats[[i]]$SingleR2 <- fct_collapse(seurats[[i]]$SingleR,
+                                         B_cell = params$anno_Bcells,
+                                         HSC = params$anno_HCS,
+                                         Fibroblasts = params$anno_fibroblast)
+    
+    ### Generate frequency tables
+    freqs[[i]]<-data.frame(tabyl(seurats[[i]]$SingleR2, sort = TRUE))
+    colnames(freqs[[i]])<-c("Cells","n","Proportion")
+    freqs[[i]]$Percent<-freqs[[i]]$Proportion*100
+    freqs[[i]]<-freqs[[i]][order(freqs[[i]]$n, decreasing = TRUE),]
+    
+    ### I used the above "tabyl" function to get the proportion of cells out of 
+    ### all total cells in case we want to set a cut-off using a proportion rather
+    ### than total count. 
+    others[[i]]<-as.vector(freqs[[i]]$cells[which(freqs[[i]]$n<params$anno_ctoff)])
+    seurats[[i]]$SingleR2 <- fct_collapse(seurats[[i]]$SingleR2,
+                                                       Others=c(others,
+                                                                params$anno_Others))
+    Idents(seurats[[i]])<-seurats[[i]]$SingleR2
+    }
 ```
 
-```{r, echo = FALSE, tidy='styler', tidy.opts=list(strict=FALSE)}
-tabyl(seurat_analysed@meta.data$SingleR2) %>%
-  as.data.frame() %>%
-  dplyr::rename(`Cell type` = `seurat_analysed@meta.data$SingleR2`, 
-                `Number of cells` = n, Percent = percent) %>%
-    knitr::kable(.,
-             caption = "Proportion of cells",
-             digits = 2)
+### Count cells types {.tabset .tabs-pils}
+
+```{r, echo = FALSE, results="asis", tidy='styler', tidy.opts=list(strict=FALSE),eval=params$anno_singleR}
+### Generate frequency tables
+tabs<-list()
+for (i in 1:length(seurats)) {
+#    p1 <- eval(substitute(
+        
+        tabs[[i]]<-tabyl(seurats[[i]]@meta.data$SingleR2) |>  as.data.frame() 
+
+        colnames(tabs[[i]])<-c("Cell type","n","Proportion of cells") 
+        tabs[[i]]$Group<-names(seurats[i])
+        
+        
+            # dplyr::rename(`Cell type` = {{paste0("seurats[[","L",i,"]]@meta.data$SingleR2")}},
+            #               `Number of cells` = n, 
+            #               Percent = percent) #|>
+            # tabs[[i]] |> knitr::kable( caption = "Proportion of cells",
+            #              digits = 2
+            #              )
+
+#        ,list(i = i)))
+#    tabs[[i]] <- p1  # add each plot into plot list
+}
+
+#### Print them
+stacked_dataframe <- do.call(rbind, tabs) |> 
+    select(Group, 
+           `Cell type`,
+           n,
+           `Proportion of cells`) 
+
+### Table it
+stacked_dataframe |> render_dt()
 ```
+
+<br>
+<br>
 
 ## 2.5 - Identify tumor cells
 
-This step utilizes `inferCNV` to infer copy number variations that will allow
+This section is **code only**. This step utilizes `inferCNV` to infer copy number variations that will allow
 us to identify malignant cells.
 
 > **_NOTE:_** For Now Skip
@@ -323,8 +424,10 @@ malignant_cells<-rownames(cnv_counts[which.max(cnv_counts$has_cnv),])
 
 ```
 
+<br>
+<br>
+
 ### Replace the identified malignant cells types in the original seurat
-> **_NOTE:_** For Now Skip
 
 ```{r, include=FALSE, eval=FALSE}
 seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$SingleR2,
@@ -332,8 +435,9 @@ seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$Sin
 ```
 
 ## 2.4 - Write to file
-The annotation is done, the file is save on **_`r params$anno_save_file`_**.
+The annotation is done, the file is save on **_`r params$anno_save_name`_**.
 
-```{r, include=FALSE}
-write_rds(seurat_analysed, file=params$anno_save_file)
+```{r, include=FALSE, eval=params$anno_save,eval=FALSE}
+### Merge it and write final object
+write_rds(seurats, file=params$anno_save_name)
 ```

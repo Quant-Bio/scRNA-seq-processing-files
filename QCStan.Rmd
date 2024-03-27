@@ -1,21 +1,18 @@
+---
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
 ```{r setup, include=FALSE, echo=FALSE}
 ### Set knitr global options
 knitr::opts_chunk$set(warning=FALSE, message=FALSE)
-
-### Load libraries
-library(data.table)
-library(Seurat)
-library(readr)
-library(cowplot)
-library(plyr)
-library(ggplot2)
-require(styler)
 ```
 
-> **_NOTE:_**  Make sure the data is the unedited seurat file.
+> ***NOTE:*** Make sure the data is the unedited seurat file.
 
-```{r}
-### First the seurat obect
+```{r load data}
+###---------------------LOAD THE SEURAT OBJECT---------------------------------
 seurat_analysed <- readRDS(file=params$dir_seurat)
 
 # seurat_analysed@meta.data[,"orig.ident"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"orig.ident"])
@@ -24,287 +21,472 @@ seurat_analysed <- readRDS(file=params$dir_seurat)
 
 ### Change ident to original idents
 Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$qcs_indent_var]
-```
 
-## 1.1 - Quality Control
-### Remove low quality cells 
-
-Remove dead cells, doublets, and cells with low molecule counts
-Examine the following 3 parameters:
-
-1. `nFeature_RNA` is the number of genes detected in each cell. 
-2. `nCount_RNA` is the total number of molecules detected within a cell
-3. `percent.mt` is the percent of features that are mitochondrial genes
-
-***
-**NOTE** 
-
-There are several things to consider. For one, a much higher number of gene counts of molecule counts may indicate the presence of doublets, especially for droplet-based scRNA-seq like 10X. In addition, high mitochondrial gene percentages may indicate dead cells, which is common in plate-based scRNA-seq like smart-seq.
-
-***
-
-```{r, fig.align='center'}
-### add mito.gene % in meta.data
+###------------------ADD mito.gene % IN METADATA--------------------------------
 seurat_analysed[["percent.mt"]] <- PercentageFeatureSet(object = seurat_analysed, pattern = "^MT|^mt")
 
-### Plot the three parameters mentioned above
-pre_Vplot = VlnPlot(seurat_analysed, 
-        pt.size = 0,
-        features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), 
-        ncol = 3) 
+###---------FOR MULTIPLE BATCHES THAT NEED TO BE PROCESSED SEPARATELY----------
+### This is often seen when CD45+ and CD45- are ran separately. The two extremely
+### different cell types can have varying degrees of doublets and mitochondria
+### gene expression. As such, they should be processed separately. If ran in a 
+### single batch, then this is not necessary, but we'll still put it into a list.
+if(params$group_name=="none"){
+    seurat_analysed@meta.data$params_group<-"No group"
+} else {
+    seurat_analysed@meta.data$params_group<-seurat_analysed@meta.data[,params$group_name]
+}
+seurats <- SplitObject(seurat_analysed, split.by = params$group_name)
 
+###------------------DEFINE THE COLORS FOR REPORT------------------------------
+colz<-list()
+for(i in 1:length(seurats)){
+    colz[[i]]<-get_colorz(length(unique(seurats[[i]]@meta.data[,params$qcs_indent_var])), 
+                          palette1, 
+                          unique(seurats[[i]]@meta.data[,params$qcs_indent_var]))
+}
+```
+
+## 1.1 - Quality Control {.tabset .tabset-pils}
+
+Remove dead cells, doublets, and cells with low molecule counts Examine
+the following 3 parameters:
+
+1.  `nFeature_RNA` is the number of genes detected in each cell.
+2.  `nCount_RNA` is the total number of molecules detected within a cell
+3.  `percent.mt` is the percent of features that are mitochondrial genes
+
+**NOTE**
+
+There are several things to consider. For one, a much higher number of
+gene counts of molecule counts may indicate the presence of doublets,
+especially for droplet-based scRNA-seq like 10X. In addition, high
+mitochondrial gene percentages may indicate dead cells, which is common
+in plate-based scRNA-seq like smart-seq.
+
+### Cell level (pre removal) {.tabset .tabset-pils}
+
+```{r pre-qc-cells, results="asis", fig.align='center', fig.height=6, fig.width=7,eval=params$qcs_eval_cell}
+### Plot the three parameters mentioned above
+pre_plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+        
+        plot_grid(
+            
+            violin_me(seurats[[i]], "nFeature_RNA",colorz = colz[[i]], themes$QB_theme_90_small(), legend = "none") + ggtitle("Gene count",subtitle=paste0(names(seurats[i]))),
+            violin_me(seurats[[i]], "nCount_RNA",colorz = colz[[i]], themes$QB_theme_90_small(), legend="none")+ggtitle("UMI count",subtitle=paste0(names(seurats[i]))),
+            violin_me(seurats[[i]], "percent.mt",colorz = colz[[i]], themes$QB_theme_90_small(), legend="none")+ggtitle("% MT genes",subtitle=paste0(names(seurats[i]))),
+            
+            ncol=3.  ### For column count
+            
+            )
+
+        ,list(i = i)))
+    pre_plots[[i]] <- p1  # add each plot into plot list
+}
+
+
+### Plot it out
+# cowplot::plot_grid(plotlist = pre_plots, nrow = length(seurats), ### Fix beginning here
+#                    ncol = 1,
+#                    vjust = 0.5)
+
+#### Plot it
+for (i in 1:length(pre_plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- pre_plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
+
+
+###-----------------------------CELL FILTER-------------------------------------
 ### Filter out cells that have QC metrics +/- away from 3*MAD:
 ### nFeature_RNA metric > 200-3*MAD(nFeature_RNA) and < median(nFeature_RNA)+3*MAD(nFeature_RNA)
 ### nCount_RNA < median(nCountRNA)+3*MAD(nCountRNA)
 ### percent.mt < median(percent.mt)+3*MAD(percent.mt)
-seurat_analysed <- subset(x = seurat_analysed, 
-                  subset = nFeature_RNA > max(params$qcs_std_nFeature_RNA, median(seurat_analysed@meta.data$nFeature_RNA, na.rm = TRUE) - 3*mad(seurat_analysed@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE))
-                  & nFeature_RNA < median(seurat_analysed@meta.data$nFeature_RNA, na.rm = TRUE) + 3*mad(seurat_analysed@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE)
-                  & nCount_RNA < median(seurat_analysed@meta.data$nCount_RNA, na.rm = TRUE) + 3*mad(seurat_analysed@meta.data$nCount_RNA, constant = 1.4826, na.rm = TRUE)
-                  & percent.mt < median(seurat_analysed@meta.data$percent.mt, na.rm = TRUE) + 3*mad(seurat_analysed@meta.data$percent.mt, constant = 1.4826, na.rm = TRUE)
+for(i in 1:length(seurats)) {
+    seurats[[i]] <- subset(x = seurats[[i]], 
+                          subset = nFeature_RNA >  max(params$qcs_std_nFeature_RNA, median(seurats[[i]]@meta.data$nFeature_RNA, na.rm = TRUE) - 3*mad(seurats[[i]]@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE)) &
+                              nFeature_RNA < median(seurats[[i]]@meta.data$nFeature_RNA, na.rm = TRUE) + 3*mad(seurats[[i]]@meta.data$nFeature_RNA, constant = 1.4826, na.rm = TRUE) &
+                              nCount_RNA <  median(seurats[[i]]@meta.data$nCount_RNA, na.rm = TRUE) + 3*mad(seurats[[i]]@meta.data$nCount_RNA, constant = 1.4826, na.rm = TRUE) & 
+                              percent.mt < median(seurats[[i]]@meta.data$percent.mt, na.rm = TRUE) + 3*mad(seurats[[i]]@meta.data$percent.mt, constant = 1.4826, na.rm = TRUE)
                   )
-
-### re-plot
-post_Vplot = VlnPlot(seurat_analysed, 
-        pt.size=0,
-        features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), 
-        ncol = 3) 
-
-cowplot::plot_grid(pre_Vplot, post_Vplot, nrow = 2, 
-                   ncol = 1, labels = c("a) Original", "b) Filtered"),
-                   vjust = 0.5)
+}
 ```
 
-### Filter low count genes
+<br> <br>
 
-There may be genes with zero counts across all cells too. 
-These reduce the average expression for a cell and should be removed, as well. 
-For our data we choose to keep only genes which are expressed in **`r params$qcs_ncells` or more cells**.
+### Cell level (post removal){.tabset .tabset-pils}
 
-```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
+```{r post-qc-cells, results="asis", fig.align='center', fig.height=6, fig.width=7,eval=params$qcs_eval_cell}
+post_plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+        
+        plot_grid(
+            
+            violin_me(seurats[[i]], "nFeature_RNA",colorz = colz[[i]], themes$QB_theme_90_small(), legend = "none") + ggtitle("Gene count",subtitle=paste0(names(seurats[i]))),
+            violin_me(seurats[[i]], "nCount_RNA",colorz = colz[[i]], themes$QB_theme_90_small(), legend="none")+ggtitle("UMI count",subtitle=paste0(names(seurats[i]))),
+            violin_me(seurats[[i]], "percent.mt",colorz = colz[[i]], themes$QB_theme_90_small(), legend="none")+ggtitle("% MT genes",subtitle=paste0(names(seurats[i]))),
+            
+            ncol=3.  ### For column count
+            
+            )
+
+        ,list(i = i)))
+    post_plots[[i]] <- p1  # add each plot into plot list
+}
+
+
+#### Plot it
+for (i in 1:length(post_plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- post_plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
+```
+
+<br>
+<br>
+
+### Gene level
+
+This section is **code only**. You can hit the "code" button to reveal the underlying code to remove low count genes.
+There may be genes with zero counts across all cells too. These reduce the average expression for a cell and should be removed, as well. For
+our data we choose to keep only genes which are expressed in
+**`r params$qcs_ncells` or more cells**.
+
+```{r remake-seurat, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Create the new seurat object
-seurat_analysed <- CreateSeuratObject(seurat_analysed@assays$RNA@counts, 
-                                      meta.data = seurat_analysed@meta.data, 
-                                      min.cells = params$qcs_ncells, 
-                                      min.features = params$qcs_nfeatures)
+seurats <- lapply(X = seurats, FUN = function(x) {
+    
+    CreateSeuratObject(LayerData(x, assay="RNA", layer="counts"),
+                       meta.data=x@meta.data,
+                       min.cells=10,
+                       min.features=10
+        
+    )
+})
 ```
 
-### Remove low quality samples
+<br>
+<br>
 
-This will remove whole samples if the sample meets the following criteria:
+### Sample level {.tabset .tabset-pils}
 
-- Is sample **UMI median below 25% quantile** of the UMI count of the entire dataset?
-- Is sample **gene count below 25% quantile** of the gene count of the entire dataset?
-- Is sample **_mt.percent_ above 75% quantile** of the mt.percent of whole dataset? 
+This will remove whole samples if the sample meets the following
+criteria:
 
+-   Is sample **UMI median below 25% quantile** of the UMI count of the
+    entire dataset?
+-   Is sample **gene count below 25% quantile** of the gene count of the
+    entire dataset?
+-   Is sample ***mt.percent*** **above 75% quantile** of the mt.percent
+    of whole dataset?
 
-***
-**NOTE** 
+**NOTE**
 
 We use quantiles as opposed to 3 x MAD because the bottom 3 x MAD will
 go into a negative value, which does nothing.
 
-***
 
-```{r,fig.height=5, fig.width=8}
-```
-
-```{r, eval=TRUE}
-
+```{r qc-samples, results="asis", eval=params$qcs_eval_sample, fig.height=6, fig.width=8}
 ### Plot the density of gene expression values by sample
-Meta_melted<-reshape2::melt(seurat_analysed@meta.data[,c("nCount_RNA",
-                                                "nFeature_RNA",
-                                                "percent.mt",
-                                                params$qcs_patient_id)],
-measure.vars=c("nCount_RNA",
-               "nFeature_RNA",
-               "percent.mt"))
-
-### Calculate medians
-count_medians<-ddply(Meta_melted[which(Meta_melted$variable=="nCount_RNA"),],
-                     params$qcs_patient_id,summarise, med=median(value))
-feature_medians<-ddply(Meta_melted[which(Meta_melted$variable=="nFeature_RNA"),],
-                     params$qcs_patient_id,summarise, med=median(value))
-mt_medians<-ddply(Meta_melted[which(Meta_melted$variable=="percent.mt"),],
-                     params$qcs_patient_id,summarise, med=median(value))
-
-
-### Round the numbers for plotting
-count_medians$med<-round(count_medians$med,3)
-feature_medians$med<-round(feature_medians$med,3)
-mt_medians$med<-round(mt_medians$med,3)
-
-### Calculate medians
-count_median<-median(Meta_melted$value[which(Meta_melted$variable=="nCount_RNA")])
-feature_median<-median(Meta_melted$value[which(Meta_melted$variable=="nFeature_RNA")])
-mt_median<-median(Meta_melted$value[which(Meta_melted$variable=="percent.mt")])
-
-### Calculate quantiles
-count_quants<-quantile(Meta_melted$value[which(Meta_melted$variable=="nCount_RNA")])
-feature_quants<-quantile(Meta_melted$value[which(Meta_melted$variable=="nFeature_RNA")])
-mt_quants<-quantile(Meta_melted$value[which(Meta_melted$variable=="percent.mt")])
-
-### Plot the three variables
-### First, the total UMI counts by sample
-variables<-c("nCount_RNA","nFeature_RNA","percent.mt")
-calculations<-c("count_quants","feature_quants","mt_quants")
-
-for(i in 1:length(variables)) {
-  ggPlot = ggplot(data=Meta_melted[which(Meta_melted$variable==variables[i]),], 
-               aes(x=!!as.name(params$qcs_patient_id),
-                   y=value,
-                   fill=!!as.name(params$qcs_patient_id)))+
-          stat_boxplot(geom="errorbar")+
-          geom_boxplot()+
-          theme_sara()+
-          theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1.0, size=10),
-                axis.text.y=element_text(size=8.5))+
-          geom_hline(yintercept=get(calculations[i])[1], linetype="dashed", 
-                     color = "black", size=0.5)+
-          geom_hline(yintercept=get(calculations[i])[2], linetype="dashed", 
-                     color = "red", size=0.5)+
-          geom_hline(yintercept=get(calculations[i])[3], linetype="dashed", 
-                     color = "black", size=0.5)+
-          geom_hline(yintercept=get(calculations[i])[4], linetype="dashed", 
-                     color = "black", size=0.5)+
-          geom_hline(yintercept=get(calculations[i])[5], linetype="dashed", 
-                     color = "black", size=0.5)+
-          guides(fill="none")
-  
-  if(variables[i] == "nCount_RNA"){
-    ggPlot = ggPlot +
-      labs(x="Sample",
-           y="Number of molecules detected in cell")
-  }else if(variables[i] == "nFeature_RNA"){
-    ggPlot = ggPlot +
-      labs(x="Sample",
-           y="Total number genes in cell")
-  }else if(variables[i] == "percent.mt"){
-    ggPlot = ggPlot +
-      labs(x="Sample",
-           y="Percent mitochondrial genes")
-  }
-  
-  print(ggPlot)
-  
+m.melts<-list()
+for(i in 1:length(seurats)){
+    m.melts[[i]]<-seurats[[i]]@meta.data |>
+        select(params$qcs_patient_id, nCount_RNA, nFeature_RNA, percent.mt) |>
+        gather(key = "variable", value = "value", -params$qcs_patient_id) 
 }
 
-### Remove samples that meet all 3 of the following criteria:
-d<-cbind(count_medians,feature_medians$med, mt_medians$med)
-colnames(d)<-c("Samples","Count_medians","Feature_medians", "Percent_mito")
-d$`Less than count 25quant?`<- d$Count_medians < ifelse(params$qcs_count_cutoff=="NA",
-                                                        count_quants[2],
-                                                        params$qcs_count_cutoff) 
-d$`Less than feature 25quant?`<-d$Feature_medians< ifelse(params$qcs_count_cutoff=="NA",
-                                                        feature_quants[2],
-                                                        params$qcs_feature_cutoff)
-d$`Greater than mt.ercent 75quant?`<-d$Percent_mito > ifelse(params$qcs_count_cutoff=="NA",
-                                                        mt_quants[4],
-                                                        params$qcs_mt_cutoff)
+###---------------------STATISTIC CALCULATIONS----------------------------------
+### Calculate some statistics to be used for plotting
+count.meds<-lapply(X=m.melts, FUN=function(x) {
+    
+    ddply(x |> filter(variable=="nCount_RNA"),
+          params$qcs_patient_id, summarise, med=median(value))    
 
-d$remove_me<-d$`Less than count 25quant?`=="TRUE"&
-d$`Less than feature 25quant?`=="TRUE"&
-d$`Greater than mt.ercent 75quant?`=="TRUE"
+})
 
-keep_me<-d$Samples[which(d$remove_me=="FALSE")]
+feature.meds<-lapply(X=m.melts, FUN=function(x) {
+    
+    ddply(x |> filter(variable=="nFeature_RNA"),
+          params$qcs_patient_id, summarise, med=median(value))    
 
-### Remove from seurat
-Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$qcs_patient_id]
-seurat_analysed<-subset(seurat_analysed,idents=keep_me)
+})
+
+mt.meds<-lapply(X=m.melts, FUN=function(x) {
+    
+    ddply(x |> filter(variable=="percent.mt"),
+          params$qcs_patient_id, summarise, med=median(value))    
+
+})
+
+### Calculate overall medians
+overall.stats<-list()
+for(i in 1:length(m.melts)){
+    overall.stats[[i]]<-m.melts[[i]] |> group_by(variable) |>
+        summarize(median = median(value, na.rm = TRUE),
+                  quantile = quantile(value, na.rm=TRUE))
+    overall.stats[[i]]$quantile_name<-c(rep(c("0%","25%","50%","75%","100%"), 3))
+    }
+
+### Define variable for plotting, and the cutoffs to use
+variables<-c("nCount_RNA","nFeature_RNA","percent.mt")
+calculations<-c("count_quants","feature_quants","mt_quants")
+cutoffs<-list()
+for(i in 1:length(seurats)) {
+    cutoffs[[i]]<-c(subset(overall.stats[[i]], variable=="nCount_RNA" & quantile_name == "25%")$quantile,
+                    subset(overall.stats[[i]], variable=="nFeature_RNA" & quantile_name == "25%")$quantile,
+                    subset(overall.stats[[i]], variable=="percent.mt" & quantile_name == "75%")$quantile)
+    names(cutoffs[[i]])<-c("nCount_RNA","nFeature_RNA","percent.mt")
+}
+###-------------------------END STATISTICS CALC--------------------------------
+### Plot the stuff
+ggplotz<-list()
+for(i in 1:length(m.melts)){
+ 
+         p1 <- eval(substitute(
+         plot_grid(
+
+             
+                sample_boxplot(dat= m.melts[[i]] |> filter(variable==variables[1]), varz=variables[1],  theme=themes$QB_theme_90_small(), colorz=colz[[i]],
+                               line=cutoffs[[i]]["nCount_RNA"]),
+                sample_boxplot(dat= m.melts[[i]] |> filter(variable==variables[2]), varz=variables[2],  theme=themes$QB_theme_90_small(), colorz=colz[[i]],
+                               line=cutoffs[[i]]["nFeature_RNA"]),
+                sample_boxplot(dat= m.melts[[i]] |> filter(variable==variables[3]), varz=variables[3],  theme=themes$QB_theme_90_small(), colorz=colz[[i]],
+                               line=cutoffs[[i]]["percent.mt"]),
+                ncol = 3
+                
+     ),
+     list(i = i)))
+         ggplotz[[i]] <- p1  # add each plot into plot list   
+}
+
+#### Plot it
+for (i in 1:length(ggplotz)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- ggplotz[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
 
 ```
 
+<br>
+<br>
 
-## 1.2 - Standardize
+#### Removed samples (if any)
+
+```{r, remove-sample-outliers}
+### Remove samples that meet all 3 of the following criteria:
+d<-list()
+keepme<-list()
+for(i in 1:length(count.meds)) {
+    d[[i]]<-cbind(count.meds[[i]],feature.meds[[i]]$med, mt.meds[[i]]$med)
+    colnames(d[[i]])<-c("Samples","Count_medians","Feature_medians", "Percent_mito")
+    
+    #### Check if any of the 4 variables are outliers
+    d[[i]]$`Less than UMI count Q25`<- d[[i]]$Count_medians < ifelse(params$qcs_count_cutoff=="NA",
+                                                        cutoffs[[i]]["nCount_RNA"],
+                                                        params$qcs_count_cutoff)
+    d[[i]]$`Less than gene count Q25`<-d[[i]]$Feature_medians< ifelse(params$qcs_count_cutoff=="NA",
+                                                        cutoffs[[i]]["nFeature_RNA"],
+                                                        params$qcs_feature_cutoff)
+    d[[i]]$`Greater than %mt Q75`<-d[[i]]$Percent_mito > ifelse(params$qcs_count_cutoff=="NA",
+                                                        cutoffs[[i]]["percent.mt"],
+                                                        percent.mt_cutoff)
+
+    ### Annotate the samples in which all 3 variables are outliers
+    d[[i]]$remove_me<-d[[i]]$`Less than UMI count Q25`=="TRUE"&
+        d[[i]]$`Less than gene count Q25`=="TRUE"&
+        d[[i]]$`Greater than %mt Q75`=="TRUE"
+    
+    ### For annotation purposes
+    d[[i]]$Group<-names(seurats[i])
+    
+    keepme[[i]]<-d[[i]]$Samples[which(d[[i]]$remove_me=="FALSE")]
+
+}
+
+### Unlist it for printing
+stacked_dataframe <- do.call(rbind, d) |> 
+    select(Group,
+           Samples, 
+           Count_medians, 
+           Feature_medians, 
+           Percent_mito,
+           `Less than UMI count Q25`,
+           `Less than gene count Q25`,
+           `Greater than %mt Q75`,
+           remove_me) |>
+    rename(`Median UMI count`=Count_medians,
+           `Median gene count`=Feature_medians,
+           `Median %mt genes`=Percent_mito,
+           `Selected for removal`=remove_me)
+
+### Table it
+stacked_dataframe |> render_dt()
+```
+
+
+<br>
+<br>
+
+```{r, remove-sample-outliers}
+### Remove from seurat
+for (i in 1:length(seurats)){
+    Idents(seurats[[i]])<-seurats[[i]]@meta.data[,params$qcs_patient_id]
+    seurats[[i]]<-subset(seurats[[i]],idents=keepme[[i]])
+}
+```
+
+<br>
+<br>
+
+## 1.2 - Standardize {.tabset .tabset-pils}
+
 
 ### Normalize the data
 
-For data normalization, we use `NormalizeDatas()` that normalizes
-the feature expression measurements for each cell by the total expression,
-multiplies this by a scale factor (10,000 by default), 
-and log-transforms the result. 
-Normalized values are stored in **[["RNA"]]@data**.
+This section is **code only**. For data normalization, we use `NormalizeDatas()` that normalizes the
+feature expression measurements for each cell by the total expression,
+multiplies this by a scale factor (10,000 by default), and
+log-transforms the result. Normalized values are stored in
+**[["RNA"]]@data**.
 
-```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
-seurat_analysed <- NormalizeData(seurat_analysed, 
-                         normalization.method = "LogNormalize", 
-                         scale.factor = 10000)
+```{r normalize-date, tidy='styler', tidy.opts=list(strict=FALSE), eval=params$qcs_normalize}
+seurats <- lapply(X=seurats, FUN=function(x) {
+     NormalizeData(x,
+                   normalization.method = "LogNormalize", 
+                   scale.factor = 10000)   
+})
 ```
 
-### Regress out confounding variables
+<br>
+<br>
 
-Calculate a subset of features that exhibit high cell-to-cell variation 
-in the dataset (i.e, they are highly expressed in some cells, and lowly 
-expressed in others). These genes help to highlight biological signal in 
+
+### Regress out confounding variables {.tabset .tabset-pils}
+
+Calculate a subset of features that exhibit high cell-to-cell variation
+in the dataset (i.e, they are highly expressed in some cells, and lowly
+expressed in others). These genes help to highlight biological signal in
 single-cell datasets.
 
-By default, `FindVariableFeatures` returns 2,000 features per dataset, but can 
-be changed to any number. 
-These may be used in downstream analysis, like PCA.
+By default, `FindVariableFeatures` returns 2,000 features per dataset,
+but can be changed to any number. These may be used in downstream
+analysis, like PCA.
 
-***
-**NOTE** 
+**NOTE**
 
 This will be done for each tissue type individually, so make sure to run
 through them one at a time.
 
-***
-
-```{r, tidy='styler', tidy.opts=list(strict=FALSE), fig.align='center', fig.cap="Variable features with labels. Identiy the 10 most highly variable genes."}
+```{r plot-variable-features, results="asis", tidy='styler', tidy.opts=list(strict=FALSE), fig.align='center', fig.cap="Variable features with labels. Identiy the 10 most highly variable genes."}
 ### Find the top 2000 most variable genes for PCA analysis
-seurat_analysed <- FindVariableFeatures(object=seurat_analysed, selection.method = "vst", 
+seurats <- lapply(X=seurats, FUN=function(x) {
+    FindVariableFeatures(object=x, selection.method = "vst", 
                             nfeatures = 2000)
+})
 
 ### Plot variable features with labels
 ### Identify the 10 most highly variable genes
-top10 <- head(VariableFeatures(seurat_analysed), 10)
-labels <- VariableFeaturePlot(seurat_analysed)
-LabelPoints(plot = labels, points = top10, repel = TRUE)
+top10<-list()
+labels<-list()
+LabelPoints<-list()
+for(i in 1:length(seurats)){
+    top10[[i]] <- head(VariableFeatures(seurats[[i]]), 10)
+    labels[[i]] <- VariableFeaturePlot(seurats[[i]])
+    LabelPoints(plot = labels[[i]], points = top10[[i]], repel = TRUE)
+}
+
+### Generate a list of plots based on the above information
+var_plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+
+                LabelPoints(plot = labels[[i]], points = top10[[i]], repel = TRUE)
+
+        ,list(i = i)))
+    var_plots[[i]] <- p1  # add each plot into plot list
+}
+
+
+#### Plot it out
+for (i in 1:length(var_plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- var_plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
 ```
 
-### Scale the data 
+### Scale the data
 
-Next, we apply a linear transformation (‘scaling’) that is a standard 
-pre-processing step prior to dimensional reduction techniques like PCA. 
+This section is **code only**. Next, we apply a linear transformation ('scaling') that is a standard
+pre-processing step prior to dimensional reduction techniques like PCA.
 The `ScaleData()` function:
 
-1. Shifts the expression of each gene, so that the mean expression across cells is 0
-2. Scales the expression of each gene, so that the variance across cells is 1.
-This step gives equal weight in downstream analyses, 
-so that highly-expressed genes do not dominate
-3. The results of this are stored in **[["RNA"]]@scale.data**
-  
-***
-**NOTE** 
+1.  Shifts the expression of each gene, so that the mean expression
+    across cells is 0
+2.  Scales the expression of each gene, so that the variance across
+    cells is 1. This step gives equal weight in downstream analyses, so
+    that highly-expressed genes do not dominate
+3.  The results of this are stored in **[["RNA"]]@scale.data**
 
-By default `ScaleData()` will only scale the identified 2,000 genes unless specified using the `"features = all.genes"` argument.
 
-***
+**NOTE**
 
-```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
-### Now scale
-#all.genes <- rownames(x = seurat_analysed)
-seurat_analysed <- ScaleData(object = seurat_analysed, 
-#                     features = all.genes, 
-                     verbose = FALSE,
-                     vars.to.regress = unlist(strsplit(params$qcs_vars_regress, 
-                                                       split = ",", fixed = T)))
+By default `ScaleData()` will only scale the identified 2,000 genes
+unless specified using the `"features = all.genes"` argument.
+
+
+```{r scale-data, tidy='styler', tidy.opts=list(strict=FALSE), eval=params$qcs_scale}
+if (params$qcs_scale_genes=="all") {
+  seurats <- lapply(X=seurats, FUN=function(x) {
+      ScaleData(object = x,
+                features = rownames(seurat_analysed), 
+                verbose = FALSE,
+                vars.to.regress = c(unlist(strsplit(params$qcs_vars_regress,
+                                                  split = ",", fixed = T))))
+        print("Scaled using all genes")
+      }) 
+} else {
+  seurats <- lapply(X=seurats, FUN=function(x) {
+      ScaleData(object = x,
+                verbose = FALSE,
+                vars.to.regress = c(unlist(strsplit(params$qcs_vars_regress,
+                                                  split = ",", fixed = T))))
+      }) 
+  print("Scaled using top variable genes")
+      
+}
 ```
+
+<br>
+<br>
 
 ## 1.3 - Identify the cell cycle phase for each cell
 
-Score the cell cycle phase of each cell.
+### Score the cell cycle
 
-```{r, include=FALSE}
+This section is **code only**. 
+
+```{r cell-cycle-intro, include=FALSE, eval=params$qcs_cc}
 qcs_cc_text = "This is done by calculating the G2M marker score with the `CellCycleScoring()` function provided in the _seurat package_."
 if(!as.logical(params$qcs_cc)){
   qcs_cc_text = "> **_NOTE:_** This step has been skipped."
 }
 ```
-`r qcs_cc_text`
 
-
-```{r, eval=params$qcs_cc}
+```{r cell-cycle-eval, eval=params$qcs_cc}
 if (params$organism=="human") {
  ### [1] Create G2M marker gene list (i.e. genes associated with the G2M phase of the 
 ### cell cycle using Seurat's built-in cc.genes (cell cycle) genes list
@@ -325,7 +507,7 @@ g2m <- rownames(seurat_analysed)[rownames(seurat_analysed) %in% g2m.genes]
 
   # Acquire the latest annotation files
   id <- ahDb %>%
-          mcols() %>%
+          GenomicRanges::mcols() %>%
           rownames() %>%
           tail(n = 1)
 
@@ -357,15 +539,19 @@ g2m <- rownames(seurat_analysed)[rownames(seurat_analysed) %in% g2m.genes]
 
 
 ### [2] Calculate G2M marker module score.
-seurat_analysed <- CellCycleScoring(seurat_analysed, 
-                                    s.features = s.genes, ### Genes associated with s-phase
-                                    g2m.features = g2m.genes, ### Genes associated with G2M phase
-                                    set.ident = TRUE)
+seurats <- lapply(X=seurats, FUN=function(x) {
+    CellCycleScoring(x,
+                     s.features = s.genes, ### Genes associated with s-phase
+                     g2m.features = g2m.genes, ### Genes associated with G2M phase
+                     set.ident = TRUE)
+})
 ```
 
 ## 1.4 - Write to file
-The QC is done, the file is save on **_`r params$qcs_save_file`_**.
 
-```{r, include=FALSE}
-write_rds(seurat_analysed, file=params$qcs_save_file)
+The QC is done, the file is save on ***`r params$qcs_save_name`***.
+
+```{r save-data, include=FALSE, eval=params$qcs_save}
+### Merge it and write final object
+write_rds(seurats, file=params$qcs_save_name)
 ```
