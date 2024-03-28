@@ -2,35 +2,7 @@
 ### Set knitr global options
 knitr::opts_chunk$set(warning=FALSE, message=FALSE)
 
-### Load libraries
-library(data.table)
-library(ComplexHeatmap)
-library(annotate)
-library(SingleR)
-library(celldex)
-library(Seurat)
-library(scales)
-library(RColorBrewer)
-library(ggplot2)
-library(plyr)
-library(kableExtra)
-library(knitr)
-library(forcats)
-library(readxl)
-library(dplyr)
-library(ggpubr)
-library(circlize)
-library(readr)
-require(styler)
-
 ### Establish color schemes and themes needed
-theme_sara <- function() {
-  theme_bw(base_size=14)+
-    theme(axis.text=element_text(color="black"),
-          panel.background=element_rect(color="black"),
-          strip.text = element_text(size=12),
-          strip.background = element_rect(fill="white"))
-}
 
 theme_sara_90 <- function() {
   theme_bw(base_size=18)+
@@ -41,24 +13,7 @@ theme_sara_90 <- function() {
           strip.background = element_rect(fill="white"))
 }
 
-ct.colors <- c("T_cells"="chartreuse4",
-               "B_cell"="darkorange",
-               "NK_cell"="red",
-               "Epithelial_cells"="firebrick", 
-               "Endothelial_cells"="hotpink", 
-               "Fibroblasts"="royalblue", 
-               "Macrophage"="chocolate4", 
-               "CMP"="navy",
-               "Others"="darkorchid",
-               "DC"="cyan4",
-               "Monocyte"="bisque3")
-
-cols <- colorRamp2( c(0.0,0.5,8.25), c("white","orangered2","black"))
-
-phase.colors <- c("G1"="#BF6ECA",
-               "G2M"="#ACDE7C",
-               "S"="#BEBEBB")
-
+### Cluster options
 cluster_option_readable = dplyr::case_when(params$dex_cluster_algorithm == 1 ~ "Original Louvain algorithm",
                                            params$dex_cluster_algorithm == 2 ~ "Louvain with multilevel refinement",
                                            params$dex_cluster_algorithm == 3 ~ "SLM algorithm",
@@ -72,104 +27,219 @@ cluster_option_readable = dplyr::case_when(params$dex_cluster_algorithm == 1 ~ "
 ```
 
 ```{r, echo = FALSE, include = FALSE}
-if(!exists("seurat_analysed")){
-  seurat_analysed = readRDS(params$anno_save_file)
+if(!exists("seurats")){
+  seurats = readRDS(params$anno_save_name)
 }
 
 ### Chang identity to cell type
-Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$dex_ident]
+for(i in 1:length(seurats)){
+    Idents(seurats[[i]])<-seurats[[i]]@meta.data[,params$dex_ident]
+}
 ```
 
-## 3.1 - PCA analyses
+## 3.1 - PCA analyses {.tabset .tabset-pils}
 
 Perform linear dimensional reduction via PCA.
 We use different methods to run diagnostics on the Principal Components (PCs).
 
-### Method 1 - Print the Principal Components (PCs) 
+### Print the Principal Components (PCs) 
 
 ```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Perform linear dimensional reduction via PCA
-seurat_analysed <- RunPCA(seurat_analysed)
+seurats <- lapply(X = seurats, FUN = function(x) {
+    x <- RunPCA(x)
+})
 ```
 
 ```{r, echo=FALSE, tidy='styler', tidy.opts=list(strict=FALSE)}
-# print(seurat_analysed[["pca"]], dims = 1:15, nfeatures = 5)
-
-aux = seurat_analysed[["pca"]][,1:15] %>%
-  as.data.frame() %>%
-  tibble::rownames_to_column(var = "gene") %>%
-  tidyr::pivot_longer(cols = !gene, names_to = "PCs", values_to = "values") %>%
-  dplyr::group_by(PCs) %>%
-  dplyr::arrange(values, .by_group = TRUE) %>%
+# print(seurats[["pca"]], dims = 1:15, nfeatures = 5)
+aux<-list()
+features_pca<-list()
+for(i in 1:length(seurats)) {
+aux[[i]] = seurats[[1]][["pca"]][,1:15] |>
+  as.data.frame() |>
+  tibble::rownames_to_column(var = "gene") |>
+  tidyr::pivot_longer(cols = !gene, names_to = "PCs", values_to = "values") |>
+  dplyr::group_by(PCs) |>
+  dplyr::arrange(values, .by_group = TRUE) |>
   dplyr::top_n(-5)
 
-features_pca = seurat_analysed[["pca"]][,1:15] %>%
-  as.data.frame() %>%
-  tibble::rownames_to_column(var = "gene") %>%
-  tidyr::pivot_longer(cols = !gene, names_to = "PCs", values_to = "values") %>%
-  dplyr::group_by(PCs) %>%
-  dplyr::arrange(desc(values), .by_group = TRUE) %>%
-  dplyr::top_n(5) %>%
-  dplyr::bind_rows(., aux) %>%
-  dplyr::mutate(direction = dplyr::if_else(values < 0, "Negative", "Positive")) %>%
+features_pca[[i]] = seurats[[i]] [["pca"]][,1:15] |>
+  as.data.frame() |>
+  tibble::rownames_to_column(var = "gene") |>
+  tidyr::pivot_longer(cols = !gene, names_to = "PCs", values_to = "values") |>
+  dplyr::group_by(PCs) |>
+  dplyr::arrange(desc(values), .by_group = TRUE) |>
+  dplyr::top_n(5) |>
+  dplyr::bind_rows(aux[[i]]) |>
+  dplyr::mutate(direction = dplyr::if_else(values < 0, "Negative", "Positive")) |>
   tidyr::pivot_wider(id_cols = PCs, names_from = "direction", values_from = "gene")
 
-features_pca %>%
-  dplyr::mutate(PCs = factor(gsub("_", " ", PCs), levels = paste0("PC ", 1:15))) %>%
-  dplyr::arrange(PCs) %>%
-  tibble::column_to_rownames(var = "PCs") %>%
-  knitr::kable(.,
-               caption = "Top 5 features in the first 15 Principal Components") %>%
-  kableExtra::column_spec(1, bold = T)
+features_pca[[i]] |>
+  dplyr::mutate(PCs = factor(gsub("_", " ", PCs), levels = paste0("PC ", 1:15))) |>
+  dplyr::arrange(PCs) |>
+  tibble::column_to_rownames(var = "PCs") 
+}
+
+### Print it out
+features_pca[[i]] |> render_dt()
 ```
 
-### Method 2 - VizDimLoadings
+<br>
+<br>
+
+### PCA loadings {.tabset .tabset-pils}
+
 This plot is to identify genes contributing to desired PCAs
 
-```{r, tidy='styler', tidy.opts=list(strict=FALSE), fig.cap="Identify genes contributing to desired PCAs"}
-VizDimLoadings(seurat_analysed, 
-               dims = 1:4, 
-               reduction = "pca")
+```{r, tidy='styler', results="asis", tidy.opts=list(strict=FALSE), fig.cap="Identify genes contributing to desired PCAs"}
+### Generate a list of plots based on the above information
+plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+        
+        VizDimLoadings(seurats[[i]],
+                       dims = 1:4,
+                       reduction = "pca")
+
+        ,list(i = i)))
+    plots[[i]] <- p1  # add each plot into plot list
+}
+
+
+#### Plot it out
+for (i in 1:length(plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
 ```
 
-### Method 3 - Dimplot
-```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
-DimPlot(seurat_analysed, reduction = "pca",
-        cols = ct.colors,
-        pt.size = 0.5) +
-  ggtitle("PCA of cell types defined by SingleR") +
-  theme_sara()+
-  ylab("PC 2")+
-  xlab("PC 1")+
-  theme(axis.title.x = element_text())
+<br>
+<br>
 
-FeaturePlot(seurat_analysed,  
-            reduction='pca', 
-            features=c("nFeature_RNA",  "percent.mt"))
+### PCA by cell types {.tabset .tabset-pils}
 
-Idents(seurat_analysed)<-seurat_analysed@meta.data$Phase
-DimPlot(seurat_analysed, reduction = "pca",
-        cols = phase.colors,
-        pt.size = 0.5) +
-  ggtitle("PCA of cells colored by cell cycle phase") +
-  theme_sara()+
-  ylab("PC 2")+
-  xlab("PC 1")+
-  theme(axis.title.y = element_text(),
-        axis.title.x = element_text())
-Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$dex_ident]
+```{r, results="asis", tidy='styler', tidy.opts=list(strict=FALSE)}
+plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+        
+        DimPlot(seurats[[i]], reduction = "pca",
+                cols = cell.cols,
+                pt.size = 0.5) +
+            ggtitle("PCA of cell types defined by SingleR") +
+            themes$QB_theme()+
+            ylab("PC 2")+
+            xlab("PC 1")+
+            theme(axis.title.x = element_text())
+        
+        ,list(i = i)))
+    plots[[i]] <- p1  # add each plot into plot list
+}
+
+#### Plot it out
+for (i in 1:length(plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
 ```
 
-### Method 4 - DimHeatmapt 
+<br>
+<br>
+
+### PCA by features {.tabset .tabset-pils}
+
+```{r, results="asis", tidy='styler', tidy.opts=list(strict=FALSE)}
+plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+        
+        FeaturePlot(seurats[[i]],
+                    reduction='pca',
+                    features=c("nFeature_RNA",  "percent.mt"),
+                    raster=FALSE)
+                ,list(i = i)))
+    plots[[i]] <- p1  # add each plot into plot list
+}
+
+#### Plot it out
+for (i in 1:length(plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
+
+```
+
+<br>
+<br>
+
+### PCA by phase {.tabset .tabset-pils}
+
+```{r,tidy='styler', results="asis",tidy.opts=list(strict=FALSE), eval=params$qcs_cc}
+for(i in 1:length(seurats)){
+    Idents(seurats[[i]])<-seurats[[i]]@meta.data$Phase
+}
+
+plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+        
+        DimPlot(seurats[[i]], reduction = "pca",
+                cols = phase.colors,
+                pt.size = 0.5) +
+            ggtitle("PCA of cells colored by cell cycle phase") +
+            themes$QB_theme()+
+            ylab("PC 2")+
+            xlab("PC 1")+
+            theme(axis.title.y = element_text(),
+                  axis.title.x = element_text())
+        
+        ,list(i = i)))
+    plots[[i]] <- p1  # add each plot into plot list
+}
+
+#### Plot it out
+for (i in 1:length(plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
+
+### Return identities
+for(i in 1:length(seurats)){
+    Idents(seurats[[i]])<-seurats[[i]]@meta.data[,params$dex_ident]
+}
+```
+
+### Dimension heatmap {.tabset .tabset-pils}
 
 This method allows for easy exploration of the primary sources of heterogeneity in a dataset, 
 and can be useful when trying to decide which PCs to include for further downstream analyses.
 
-```{r, tidy='styler', tidy.opts=list(strict=FALSE)}
-DimHeatmap(seurat_analysed, dims = 1:15, cells = 500, balanced = TRUE)
+```{r, results="asis",tidy='styler'}
+#### Plot it out
+for (i in 1:length(seurats)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+title_plots <- print(DimHeatmap(seurats[[i]], dims = 1:15, cells = 500, balanced = TRUE))
+cat("\n \n \n")
+}
 ```
 
-### Method 5 - Elbow plot
+<br>
+<br>
+
+### Elbow plot {.tabset .tabset-pils}
 
 We look for an ‘elbow’ in the plot (usually around PC6-7).
 However, even PCs up to usually 12 still maintain a high standard deviation.
@@ -177,25 +247,141 @@ However, even PCs up to usually 12 still maintain a high standard deviation.
 This is supported by the heatmaps, suggesting that the majority of 
 true signal is captured in the first 12 PCs.
 
-```{r, fig.cap="Identify most influential PCs", tidy='styler', tidy.opts=list(strict=FALSE)}
-pca = seurat_analysed@reductions$pca
-eigValues = (pca@stdev)^2 ## EigenValues
-varExplained=eigValues/sum(eigValues)
+```{r, results="asis", fig.cap="Identify most influential PCs", tidy='styler', tidy.opts=list(strict=FALSE)}
+### Make some more lists
+pcas<-list()
+eigValues<-list()
+varExplained<-list()
+PCs<-list()
+ndims<-list()
 
-PCs<-sum(ifelse(cumsum(varExplained)<=params$dex_variance_explained, 1, 0))
+### Determine which PCs explain 80% of the variance
+for(i in 1:length(seurats)){
+    
+    pcas[[i]] = seurats[[i]]@reductions$pca
+    eigValues[[i]] = (pcas[[i]]@stdev)^2 ## EigenValues
+    varExplained[[i]]=eigValues[[i]]/sum(eigValues[[i]])
+    PCs[[i]]<-sum(ifelse(cumsum(varExplained[[i]])<=params$dex_variance_explained, 1, 0))
+    if (PCs[[i]] < 5){PCs[[i]] = 5}
+    ndims[[i]] = ifelse(PCs[[i]] >= 20, PCs[[i]] + 1, 30)
+    
+}
 
-if (PCs < 5){PCs = 5}
+### Make some more plots
+plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+        
+        ElbowPlot(seurats[[i]], ndims = ndims[[i]]) +
+            ggplot2::geom_vline(xintercept = PCs[[i]], linetype='dashed', color='blue')
 
-ndims = ifelse(PCs >= 20, PCs + 1, 30)
+        ,list(i = i)))
+    plots[[i]] <- p1  # add each plot into plot list
+}
 
-ElbowPlot(seurat_analysed, ndims = ndims) +
-  ggplot2::geom_vline(xintercept = PCs, linetype='dashed', color='blue')
-
+#### Plot it out
+for (i in 1:length(plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
 ```
 
-We use **`r PCs` PCs** that capture the **`r params$dex_variance_explained*100`% of the variance**.
+<br>
+<br>
 
-## 3.2 - uMAP and tSNE visualisations
+We use **PCs** that capture the **`r params$dex_variance_explained*100`% of the variance**.
+This is a good rule of thumb for most datasets, and is a good starting point for most analyses.
+
+## 3.2 - Confounding variables {.tabset .tabset-pils}
+
+### Categorical and numerical vars vs. PCs {.tabset .tabset-pils}
+
+Variables that are associated with the top 10 PCs. These variables may be confounding variables and worth considering in downstream analyses. 
+
+```{r,confounding, results="asis", fig.cap="Variables that are associated with the top 10 PCs. These variables may be confounding variables and worth considering in downstream analyses. ", tidy='styler', tidy.opts=list(strict=FALSE), eval=params$dex_confounding}
+### Calculate PCs
+mats<-list()
+pca.list<-list()
+
+### Calculate PC statistics (again)
+for(i in 1:length(seurats)){
+    mats[[i]]<-as.data.frame(LayerData(seurats[[i]], assay="RNA", layer="counts"))
+    pca.list[[i]]<-list(All=FactoMineR::PCA(t(mats[[i]]), ncp=10, graph=FALSE, scale=FALSE))
+}    
+
+### Calculate covariates
+anova.results<-list()
+glm.results<-list()
+results<-list()
+df.melt<-list()
+for(i in 1:length(pca.list)) {
+    ### [1] Run ANOVA of categorical variables
+    anova.results[[i]] <- anova_PCA(obj_name="All",
+                               pca.df=pca.list[[i]]$All,
+                               metadata=seurats[[i]]@meta.data,
+                               merge_ID="Cell",
+                               cat_var=params$dex_categorical_vars,
+                           numPCs=10)
+    rownames(anova.results[[i]])<-anova.results[[i]]$Factor
+
+    ### [2] Run GLM for continuous variables
+    glm.results[[i]] <- glm_PCA(obj_name="All",
+                                pca.list=pca.list[[i]]$All,
+                                metadata=seurats[[i]]@meta.data,
+                                merge_ID="Cell",
+                                num_var=params$dex_numerical_vars,
+                                numPCs=10)
+    rownames(glm.results[[i]])<-glm.results[[i]]$Factor
+
+    ### [3] Melt results for plotting
+    results[[i]] <- rbind(anova.results[[i]], glm.results[[i]])
+    df.melt[[i]] <- melt(results[[i]])
+    df.melt[[i]] <- cbind(df.melt[[i]], PC=as.numeric(gsub("Dim|_adj_pvalue", "", df.melt[[i]]$variable)))
+    df.melt[[i]]$ajp <- ifelse(df.melt[[i]]$value <= 0.001, "<=0.001", df.melt[[i]]$value)
+    df.melt[[i]]$ajp <- ifelse(df.melt[[i]]$ajp <= 0.01 &  df.melt[[i]]$ajp > 0.001, "<=0.01",  df.melt[[i]]$ajp)
+    df.melt[[i]]$ajp <- ifelse(df.melt[[i]]$ajp <= 0.05 &  df.melt[[i]]$ajp > 0.01, "<=0.05",  df.melt[[i]]$ajp)
+    df.melt[[i]]$ajp <- ifelse(df.melt[[i]]$ajp > 0.05, "NS",  df.melt[[i]]$ajp)
+}
+
+### Plot
+plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+
+        ggplot(df.melt[[i]], aes(x=PC, y=Factor)) +
+            geom_tile(aes(fill=ajp),color="white") +
+            scale_fill_manual(values=c("<=0.001"="#4c1d4bff",
+                                       "<=0.01"="#bd1655ff",
+                                       "<=0.05"="#f47f58ff",
+                                       "NS"="#FAEBddff"),
+                              name="FDR adjusted p-value") +
+            labs(title="Covariates vs. PCs",
+                 subtitle=paste0("Data is from: ", names(seurats[i]))) +
+            themes$QB_theme()+
+            ylab("")
+    
+
+                ,list(i = i)))
+    plots[[i]] <- p1  # add each plot into plot list
+    }
+
+#### Plot it out
+for (i in 1:length(plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+
+title_plots <- plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
+```
+
+<br>
+<br>
+
+## 3.3 - uMAP and tSNE visualisations {.tabset .tabset-pils}
 
 ***
 **NOTE** 
@@ -228,35 +414,65 @@ the dataset.
 
 The option selected for this analysis is **`r cluster_option_readable`**.
 
-```{r, tidy='styler', tidy.opts=list(strict=FALSE), comment= ""}
-### Identify neighbors
-seurat_analysed <- FindNeighbors(seurat_analysed, dims = 1:PCs)
+### UMAP colored by cell type {.tabset .tabset-pils}
 
-### Identify clusters
-seurat_analysed <- FindClusters(seurat_analysed, 
-                                algorithm = params$dex_cluster_algorithm)
+```{r, tidy='styler', results="asis",tidy.opts=list(strict=FALSE), comment= ""}
+### Calculate UMAP, tSCNE, and identify clusters
+for(i in 1:length(seurats)){
+    seurats[[i]] <- FindNeighbors(seurats[[i]], dims = 1:PCs[[i]])
+    seurats[[i]] <- FindClusters(seurats[[i]], 
+                            algorithm = params$dex_cluster_algorithm)
+    seurats[[i]] <- RunUMAP(seurats[[i]], dims = 1:PCs[[i]])
+    seurats[[i]] <- RunTSNE(seurats[[i]], dims = 1:PCs[[i]], check_duplicates=FALSE)
+}
 
-### Run uMAP and tSNE
-seurat_analysed <- RunUMAP(seurat_analysed, dims = 1:PCs)
-seurat_analysed <- RunTSNE(seurat_analysed, dims = 1:PCs)
 
-### Plot uMAP 
-DimPlot(seurat_analysed, reduction = "umap",
-        group.by = "SingleR2",
-        cols = ct.colors,
-#        shuffle = TRUE,
-#        repel=TRUE,
-#        label=TRUE, label.size = 2.5,label.box = TRUE,
-        pt.size = 0.5) +
-  ggtitle("UMAP of cell types defined by SingleR") +
-  theme_sara()+
-  ylab("UMAP 2")+
-  xlab("UMAP 1")+
-  theme(axis.title.y = element_text(),
-        axis.title.x = element_text())
+### Make some more plots
+plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+        
+        DimPlot(seurats[[i]], reduction = "umap",
+                group.by = "SingleR2",
+                cols = cell.cols,
+                #        shuffle = TRUE,
+                #        repel=TRUE,
+                #        label=TRUE, label.size = 2.5,label.box = TRUE,
+                pt.size = 0.5) +
+            ggtitle("UMAP of cell types defined by SingleR") +
+            themes$QB_theme()+
+            ylab("UMAP 2")+
+            xlab("UMAP 1")+
+            theme(axis.title.y = element_text(),
+                  axis.title.x = element_text())
+        
+        ,list(i = i)))
+    plots[[i]] <- p1  # add each plot into plot list
+    }
 
+#### Plot it out
+for (i in 1:length(plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
+```
+
+<br>
+<br>
+
+### UMAP colored by cell cycle phase {.tabset .tabset-pils}
+
+```{r,  tidy='styler', results="asis", tidy.opts=list(strict=FALSE), comment= "", eval=params$qcs_cc}
 ### Color by cell cycle phase
-DimPlot(seurat_analysed, reduction = "umap",
+### Make some more plots
+plots<-list()
+for (i in 1:length(seurats)) {
+    p1 <- eval(substitute(
+        
+        DimPlot(seurats[[i]], reduction = "umap",
         group.by = "Phase",
         cols = phase.colors,
 #        shuffle = TRUE,
@@ -264,14 +480,27 @@ DimPlot(seurat_analysed, reduction = "umap",
 #        label=TRUE, label.size = 2.5,label.box = TRUE,
         pt.size = 0.5) +
   ggtitle("UMAP of cell types colored by cell cycle phase") +
-  theme_sara()+
+  themes$QB_theme()+
   ylab("UMAP 2")+
   xlab("UMAP 1")+
   theme(axis.title.y = element_text(),
         axis.title.x = element_text())
+
+        ,list(i = i)))
+    plots[[i]] <- p1  # add each plot into plot list
+    }
+
+#### Plot it out
+for (i in 1:length(plots)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+  
+title_plots <- plots[[i]]
+print(title_plots)
+cat("\n \n \n")
+}
 ```
 
-## 3.3 Differential expression per cluster
+## 3.4 Differential expression per cluster
 
 Seurat can help you find markers that define clusters via differential expression. 
 By default, it identifies positive and negative markers of a single cluster (specified 
@@ -297,90 +526,125 @@ the speed increases can be significant and the
 most highly differentially expressed features will likely still rise to the top.
 
 ```{r, tidy='styler', tidy.opts=list(strict=FALSE),eval=params$dex_run_dex}
-### Find markers for every cluster compared to all remaining cells
-Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$dex_ident]
-DE_seurat_analysed <- FindAllMarkers(seurat_analysed, 
+if (file.exists(params$dex_mat_save_name)){
+  DE_seurats <- readRDS(params$dex_mat_save_name)
+  text<-paste0("DEX data source: ","DE file read successfully.")
+} else {
+    ### Find markers for every cluster compared to all remaining cells
+    DE_seurats<-list()
+    for(i in 1:length(seurats)){
+    Idents(seurats[[i]])<-seurats[[i]]@meta.data[,params$dex_ident]
+    DE_seurats[[i]] <- FindAllMarkers(seurats[[i]], 
                             only.pos = params$dex_only_positive, 
                              min.pct = params$dex_min_pct, 
                              logfc.threshold = params$dex_logfc_threshold)
-
-sigs <- DE_seurat_analysed[which(DE_seurat_analysed$p_val_adj< params$dex_p_val_adj &
-                           DE_seurat_analysed$pct.1>params$dex_min_pct &
-                           DE_seurat_analysed$avg_log2FC>params$dex_logfc_threshold),]
-
-top5 <- sigs %>%
-    group_by(cluster) %>%
-    top_n(n = 5, wt = avg_log2FC)
+    DE_seurats[[i]]$params_group<-names(seurats[i])
+    }
     
-### Rearrange for convenience
-lvls<- as.data.frame(sort(table(seurat_analysed@meta.data[,params$dex_ident]), decreasing=T))
-top5 <- top5 %>%  mutate(cluster =  factor(cluster, levels = lvls$Var1)) %>%
-  arrange(cluster) 
-
-
-### List the top 5 highest expressed genes for each cell subtype
-sigs %>%
-    group_by(cluster) %>%
-    slice_max(n = 5, order_by = avg_log2FC) %>%
-    dplyr::select(gene, cluster, pct.1, pct.2, p_val, p_val_adj, avg_log2FC) %>%
-    dplyr::mutate(p_val = as.character(signif(p_val, 2))) %>%
-    dplyr::mutate(p_val_adj = as.character(signif(p_val_adj, 2))) %>%
-    dplyr::rename(Pvalue = p_val, `Adjusted Pvalue` = p_val_adj, `log2FC avg` = avg_log2FC) %>%
-    knitr::kable(.,
-               caption = " Identify significantly DE genes. Selection of the 5 highest expressed genes for each cell subtype.",
-               digits = 2) %>%
-    kableExtra::scroll_box(width = "800px", height = "400px")
+    ### Write to file
+    write_rds(DE_seurats, file=params$dex_mat_save_name)
+    text<-paste0("DEX data source: ","DE file created and data written successfully.")
+}
 ```
 
+**_`r text`_**
 
-```{r, fig.height=10, fig.width=12, fig.cap="Heatmap of top 5 Differentially Expressed Genes", tidy='styler', tidy.opts=list(strict=FALSE),eval=params$dex_run_dex}
-### To plot the heatmap, I'll downsample first
-seurat_small<-subset(seurat_analysed, downsample=1000)
-seurat_small@meta.data[,params$dex_ident]<-factor(seurat_small@meta.data[,params$dex_ident],levels=lvls$Var1)
+### DEGs heatmap {.tabset .tabset-pils}
 
-### Subset the top 5 genes
-mat<-as.matrix(seurat_small@assays[["RNA"]]@data)
-mat<-mat[top5$gene,]
+```{r, results="asis", fig.height=14, fig.width=16, fig.cap="Heatmap of top 5 Differentially Expressed Genes", tidy='styler', tidy.opts=list(strict=FALSE),eval=params$dex_run_dex}
+### Make a list of a list. These are the items necessary to make a heatmap
+heatmap_stuff<-list()
+for(i in 1:length(DE_seurats)) {
+    heatmap_stuff[[i]]<-LetsMakeAHeatmap(dex_data=DE_seurats[[i]], 
+                         pval = 0.05, 
+                         top_n = 5, 
+                         log2FC = 0.0,
+                         sample_size = 250, 
+                         seurat = seurats[[i]], 
+                         variable = "SingleR2")
+}
 
-### Create an object to establish column annotations
-ha <- HeatmapAnnotation(Cluster=seurat_small@meta.data[,params$dex_ident],
-#                        col=list(Cluster=ct.colors),
-                        border=TRUE)
-
-### Add row annotation colors
-index<-match(top5$gene, DE_seurat_analysed$gene)
-ra <- rowAnnotation(`Fold-change (FC)`=anno_barplot(top5$avg_log2FC, 
-                                               add_numbers=TRUE),
-                    `FC reference` = top5$cluster,
+### Make the annotation objects
+has<-list()
+ras<-list()
+morecols<-list()
+has<-for(i in 1:length(heatmap_stuff)) {
+    
+    ### 1) Column annotations
+    has[[i]] <- HeatmapAnnotation(`TEMPUS cell type`=heatmap_stuff[[i]]$seurat_sample$SingleR2,
+                        col=list(`Group`=cell.cols
+                                 ),
+                        annotation_name_side = "left",
+                        border=TRUE,
+                        simple_anno_size = unit(0.35, "cm"))
+    
+    ### 2) Row annotations
+    ras[[i]]<- rowAnnotation(`Fold-change`=anno_barplot(heatmap_stuff[[i]]$top$avg_log2FC, 
+                                               add_numbers=F),
+                           `Group source` = heatmap_stuff[[i]]$top$cluster,
+                           `Dup.`=heatmap_stuff[[i]]$top$Duplicated,
+                           col=list(`Group source`=cell.cols,
+                                    `Dup.`=c("Yes"="yellow",
+                                             "No"="purple")
+                                    ),
+                    gp = gpar(col = "black"),
                     annotation_name_rot=90,
-#                    col=list(`FC reference`=ct.colors),
-                    gp = gpar(col = "black")
-                    )
+                    show_legend = c(`Sample source`=FALSE)
+                        )
+    
+    ### 3) Color scheme 3 for expression levels
+    morecols[[i]] <- colorRamp2( c(0,max(as.matrix(heatmap_stuff[[i]]$mat)),
+                          max(heatmap_stuff[[1]]$mat)), c("white","orangered2","black") )
+    }
 
-Heatmap(mat, 
-        show_column_names = F, 
-        col=cols, 
-        top_annotation = ha, 
-        column_split = seurat_small@meta.data[,params$dex_ident], 
-        border = T, 
-        cluster_column_slices = FALSE,
-        cluster_row_slices =  FALSE,
-        border_gp = gpar(col = "darkgrey", lty = 1),
-        row_gap = unit(1.5, "mm"),
-        row_split = top5$cluster,
-        row_title = "DE Genes",
-        column_title_side = "bottom", 
-        column_title_rot = 90, 
+
+### Plot the heatmap for tumor tissue
+maps<-list()
+for(i in 1:length(heatmap_stuff)) {
+    
+    maps[[i]]<-Heatmap(heatmap_stuff[[i]]$mat, 
         name="Expression", 
-        left_annotation = ra
-)
+        col=morecols[[i]],         
+        border = T, 
+        border_gp = gpar(col = "darkgrey", lty = 1),
+        
+        ### Column stuff
+        top_annotation = has,
+        show_column_names = F,
+        column_split = factor(heatmap_stuff[[i]]$seurat_sample$SingleR2,
+                             levels=heatmap_stuff[[i]]$lvls$Var1),
+
+        cluster_column_slices = F,
+        column_gap = unit(1.0,"mm"),
+        column_title_side = "top",
+        column_title=paste0(names(seurats[i]), " cells only"),
+
+        ### Row stuff
+        left_annotation = ras[[i]],
+        show_row_names = F,
+        row_split=factor(heatmap_stuff[[i]]$top$cluster,
+                         levels=heatmap_stuff[[i]]$lvls$Var1),
+        cluster_row_slices =  F,
+        row_gap = unit(1.0, "mm"),
+        row_title = "Top DEGs per celltype",
+        row_names_gp = gpar(fontsize = 7)
+        )
+    
+}
+
+### Print the heatmaps
+for (i in 1:length(seurats)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+title_plots <- print(maps[[i]])
+cat("\n \n \n")
+}
+
 ```
 
-## 3.4 - Write to file
-The annotation is done, the file is save on **_`r params$dex_save_file`_**.
+## 3.5 - Write seurat to file
+The annotation is done, the file is save on **_`r params$dex_seurat_save_name`_**.
 
-```{r, include=FALSE, eval=params$dex_run_dex}
+```{r, include=FALSE, eval=params$dex_write_dex_seurat}
 ### All the QC is done, so now we may write to file
-write.csv(DE_seurat_analysed, file=params$dex_mat_save_file)
-write_rds(seurat_analysed, file=params$dex_save_file)
+write_rds(seurats, file=params$dex_seurat_save_name)
 ```
