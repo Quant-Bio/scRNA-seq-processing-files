@@ -30,12 +30,13 @@ seurat_analysed[["percent.mt"]] <- PercentageFeatureSet(object = seurat_analysed
 ### different cell types can have varying degrees of doublets and mitochondria
 ### gene expression. As such, they should be processed separately. If ran in a 
 ### single batch, then this is not necessary, but we'll still put it into a list.
-if(params$group_name=="none"){
-    seurat_analysed@meta.data$params_group<-"No group"
+if(params$split_by_group==FALSE){
+    seurat_analysed@meta.data[,"group"]<-params$analysed_dataset
+    seurats<-SplitObject(seurat_analysed, split.by = "group")
 } else {
     seurat_analysed@meta.data$params_group<-seurat_analysed@meta.data[,params$group_name]
+    seurats <- SplitObject(seurat_analysed, split.by = params$group_name)
 }
-seurats <- SplitObject(seurat_analysed, split.by = params$group_name)
 
 ###------------------DEFINE THE COLORS FOR REPORT------------------------------
 colz<-list()
