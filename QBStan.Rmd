@@ -16,8 +16,8 @@ params:
   analysed_dataset: "Bassez et al BRCA"
   more_authors: "Rosa Hernansaiz, Vincent Perez, and Jen Modliszewski"
   dir_seurat: "~/public-data/quantbio/scRNA-seq/QBStanAnn/Seurat_Breast_Bassez1_downsampled.rds"
-  split_by_group: true
-  group_name: "pretend_groups" ### This splits the seurat into a list of seurats based on a group. If there is no group, place "none"
+  split_by_group: FALSE ### If you want to process data split by a group set to true.
+  group_name:  ### This splits the seurat into a list of seurats based on a group. Leave blank if no group
   
 #---------------------QUALITY CONTROL AND STANDARDIZATION-----------------------
   QCS: TRUE
@@ -392,6 +392,8 @@ LetsMakeAHeatmap <- function(dex_data, pval, log2FC, seurat, variable, top_n,  s
            )
 }
 ```
+
+Data taken from [`r params$analysed_dataset`](https://0-www-ncbi-nlm-nih-gov.brum.beds.ac.uk/geo/query/acc.cgi?acc=GSE216456)
 
 # 1 - Quality control and standardization file (QCStanAnn)
 Perform quality control and standardization of single cell RNA-seq datasets.
