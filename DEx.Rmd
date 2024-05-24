@@ -547,7 +547,6 @@ if (file.exists(params$dex_mat_save_name)){
 }
 ```
 
-**_`r text`_**
 
 ### DEGs heatmap {.tabset .tabset-pils}
 
