@@ -2,6 +2,18 @@
 ```{r setup, include=FALSE, echo=FALSE, include=FALSE}
 ### Set knitr global options
 knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+
+### Fix conflicts
+conflict_prefer("filter", "dplyr")
+conflict_prefer("count", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("slice", "dplyr")
+conflict_prefer("rename","dplyr")
+conflict_prefer("mutate","dplyr")
+conflict_prefer("arrange","dplyr")
+conflict_prefer("summarize", "dplyr")
+conflict_prefer("summarise", "dplyr")
+conflict_prefer("layout","plotly")
 ```
 
 ```{r, echo = FALSE, include = FALSE}
@@ -22,7 +34,7 @@ if(!as.logical(params$anno_singleR)){
 }
 ```
 
-This section is **code only**. `r anno_singleR_text`
+This subsection is **code only**. Hit the "code" button to reveal the code. `r anno_singleR_text`
 
 ```{r anno_singleR, tidy='styler', tidy.opts=list(strict=FALSE), eval = params$anno_singleR}
 if(params$anno_annotation == "HumanAtlas"){
@@ -59,7 +71,7 @@ Low delta values are caused by:
 
 We first check the scores and the number of low-quality labels
 
-```{r anno_qc1, tidy='styler', tidy.opts=list(strict=FALSE), warning=FALSE,  fig.align='center',fig.height=8, fig.width = 10, fig.cap="All cell types identified and their scores (pre pruned)", eval = params$anno_singleR}
+```{r anno_qc1, tidy='styler', tidy.opts=list(strict=FALSE), warning=FALSE,  fig.align='center',fig.height=8, fig.width = 14, fig.cap="All cell types identified and their scores (pre pruned)", eval = params$anno_singleR}
 ### Generate a list of plots based on the above information
 plots<-list()
 for (i in 1:length(seurats)) {
@@ -112,12 +124,12 @@ tabs<-list()
 for(i in 1:length(cells)) {
     tabs[[i]]<-table(table(is.na(cells[[i]]$pruned.labels)) |>
         as.data.frame() |>
-        mutate(Group = names(seurats[i])) |>
+        dplyr::mutate(Group = names(seurats[i])) |>
         dplyr::rename(Pruned = Var1, Count = Freq)) 
     
         tabs[[i]] <- as.data.frame(tabs[[i]]) |>
-        filter(Freq>0)|>
-        select(Group, Pruned, Count)
+        dplyr::filter(Freq>0)|>
+        dplyr::select(Group, Pruned, Count)
         tabs[[i]] <- tabs[[i]] |> render_dt()
             
 }
@@ -201,9 +213,9 @@ cat("\n \n \n")
 
 ### 6 - Prune cells from seurat
 
-This section is **code only**.
+This subsection is **code only**. Hit the "code" button to reveal the code.
 
-```{r anno_pruned, tidy='styler', tidy.opts=list(strict=FALSE),eval=FALSE}
+```{r anno_pruned, tidy='styler', tidy.opts=list(strict=FALSE),eval=TRUE}
 ### Prune the cells in the subsetted seurat objects
 for(i in 1:length(seurats)){
     seurats[[i]]<-seurats[[i]][,-prune[[i]]]
@@ -237,6 +249,7 @@ Also, if the cells are B or T, cell subtypes merge with B and T cells, respectiv
 ### So not to lose the low count b cell subtypes, collapse those first
 freqs<-list()
 others<-list()
+metas<-list()
 for(i in 1:length(seurats)){
     seurats[[i]]$SingleR2 <- fct_collapse(seurats[[i]]$SingleR,
                                          B_cell = params$anno_Bcells,
@@ -244,7 +257,8 @@ for(i in 1:length(seurats)){
                                          Fibroblasts = params$anno_fibroblast)
     
     ### Generate frequency tables
-    freqs[[i]]<-data.frame(tabyl(seurats[[i]]$SingleR2, sort = TRUE))
+    metas[[i]]<-seurats[[i]]@meta.data
+    freqs[[i]]<-data.frame(tabyl(metas[[i]]$SingleR2, sort = TRUE))
     colnames(freqs[[i]])<-c("Cells","n","Proportion")
     freqs[[i]]$Percent<-freqs[[i]]$Proportion*100
     freqs[[i]]<-freqs[[i]][order(freqs[[i]]$n, decreasing = TRUE),]
@@ -301,8 +315,7 @@ stacked_dataframe |> render_dt()
 
 ## 2.5 - Identify tumor cells
 
-This section is **code only**. This step utilizes `inferCNV` to infer copy number variations that will allow
-us to identify malignant cells.
+This subsection is **code only**. Hit the "code" button to reveal the code.This step utilizes `inferCNV` to infer copy number variations that will allow us to identify malignant cells.
 
 > **_NOTE:_** For Now Skip
 

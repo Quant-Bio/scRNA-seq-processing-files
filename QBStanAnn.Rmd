@@ -13,22 +13,23 @@ output:
       code_folding: hide
       toc_depth: 5
 params:
-  analysed_dataset: "Terekhanova et al PAAD"
+  analysed_dataset: "Liu et al Ankylosating Spondylitis"
   more_authors: "Rosa Hernansaiz, Vincent Perez, and Jen Modliszewski"
-  dir_seurat: "~/public-data/quantbio/scRNA-seq/Pan-cancer_Terekhanova_2023/Seurat_paad_terekhanova.rds"
-  split_by_group: FALSE ### If you want to process data split by a group set to true.
-  group_name:  ### This splits the seurat into a list of seurats based on a group. Leave blank if no group
+  dir_seurat: "~/public-data/quantbio/scRNA-seq/Ankylosating_spondylitis_Liu_2022/PBMC_SeuratMerged_GEXonly.rds"
+  is_list: FALSE
+  split_by_group: FALSE
+  group_name: "none" ### This splits the seurat into a list of seurats based on a group. If there is no group, place "none"
   
 #---------------------QUALITY CONTROL AND STANDARDIZATION-----------------------
   QCS: TRUE
   organism: "human" # Organism used in the experiment. Options are "mouse" and "human".
-  qcs_indent_var: "Sample" # Default identity of cells in metadata
+  qcs_indent_var: "Subject" # Default identity of cells in metadata
   qcs_eval_cell: TRUE
   qcs_std_nFeature_RNA: 200 # Lowest value of nFeature_RNA before cells are pruned
   qcs_vars_regress: ["nCount_RNA", "percent.mt"] # Variables to regress out
   qcs_ncells: 10 # Lowest number of cells that express a gene before pruning the gene
   qcs_nfeatures: 10 # Lowest number of genes in a cell before pruning a cell
-  qcs_patient_id: "Sample" # This will change depending on the experiment
+  qcs_patient_id: "Subject" # This will change depending on the experiment
   qcs_count_cutoff: "NA" # Numerical value to set for the sample-level nFeature_RNA
   qcs_feature_cutoff: "NA" # Numerical value to set for sample-level nCount_RNA
   qcs_mt_cutoff: "NA" # Numerical value to set for sample-level mt.percent
@@ -38,8 +39,8 @@ params:
   qcs_scale: TRUE ### To scale the data or not
   qcs_scale_genes: default ### Gene list for scaling. Use "all" for all genes in seurat or "default" for the top 2k
   qcs_cc: TRUE # Set true if you want to add cell cycle phase for each cell to metadata
-  qcs_save: FALSE # set false if you don't want to save the file
-  qcs_save_name: "~/public-data/quantbio/scRNA-seq/Pan-cancer_Terekhanova_2023/Seurat_paad_terekhanova_QCS.rds" # Name of the file to write new seurat object as
+  qcs_save: TRUE # set false if you don't want to save the file
+  qcs_save_name: "~/public-data/quantbio/scRNA-seq/Ankylosating_spondylitis_Liu_2022/Seurat_GEXonly_QCS.rds" # Name of the file to write new seurat object as
 
 #------------------ANNOTATE THE CELLS WITH TYPE AND PHASE-----------------------
   ANNO: TRUE # Set true to annotate the seurat object with cell types
@@ -50,25 +51,25 @@ params:
   anno_Bcells: ["Pro-B_cell_CD34+","Pre-B_cell_CD34-","B_cell"] # These cells are collapsed into B cells
   anno_HCS: ["HSC_-G-CSF","HSC_CD34+"] # These cells are collapsed into HSC cells
   anno_fibroblast: ["Fibroblasts", "Chondrocytes","Smooth_muscle_cells","Tissue_stem_cells"] # These cells are collapsed into fibroblasts
-  anno_save: true # set false if you don't want to save the file
-  anno_save_name:  "~/public-data/quantbio/scRNA-seq/Pan-cancer_Terekhanova_2023/Seurat_paad_terekhanova_ANNO.rds" # Name of the file to write new seurat object
+  anno_save: TRUE # set false if you don't want to save the file
+  anno_save_name:  "~/public-data/quantbio/scRNA-seq/Ankylosating_spondylitis_Liu_2022/Seurat_GEXonly_ANNO.rds" # Name of the file to write new seurat object
   
 #------------------CLUSTERING AND DIFFERNTIAL EXPRESSION------------------------
   DEx: TRUE # Set true if you want to run this section
-  dex_confounding: TRUE # Set true if you want to check for confounding variables
+  dex_confounding: FALSE # Set true if you want to check for confounding variables
   dex_categorical_vars: ["timepoint","Phase"] # This is required. It checks to see if a categorical variable is associated with the principal components 1 through 10. If so, it may confound the data.
   dex_numerical_vars: ["nCount_RNA","nFeature_RNA","percent.mt"] # This is required. It checks to see if a numerical variable is associated with the principal components 1 through 10. If so, it may confound the data.
   dex_ident: "SingleR2" # Cell labels to run differential expression on
   dex_cluster_algorithm: 1 # Clustering algorithm to use (1 = louvain, 2 = louvain with multilevel)
   dex_variance_explained: 0.8 # Percentage of variance explained by # of PCs
-  dex_run_dex: TRUE # Set false if you do not want to run differential expression. A file will still be written with PCA, UMAP, and tSNE metadata
+  dex_run_dex: FALSE # Set false if you do not want to run differential expression. A file will still be written with PCA, UMAP, and tSNE metadata
   dex_write_dex_seurat: TRUE
   dex_min_pct: 0.25 # Minimum percent of cells a gene can be expressed in to be identified as significant
   dex_only_positive: TRUE # If you want only examine positively expressed genes use this.
   dex_logfc_threshold: 0.0 # FC threshold for significant genes
   dex_p_val_adj: 0.1 # P value threshold for significant genes
-  dex_seurat_save_name: "~/public-data/quantbio/scRNA-seq/Pan-cancer_Terekhanova_2023/Seurat_paad_terekhanova_FULLYPROCESSED.rds" # Name of the file to write new seurat object in
-  dex_mat_save_name: "~/public-data/quantbio/scRNA-seq/Pan-cancer_Terekhanova_2023/Seurat_paad_terekhanova_DEx_output.rds" # Name of the file to write the DE gene list as
+  dex_seurat_save_name: "~/public-data/quantbio/scRNA-seq/Ankylosating_spondylitis_Liu_2022/Seurat_GEXonly_FULLYPROCESSED.rds" # Name of the file to write new seurat object in
+  dex_mat_save_name: "~/public-data/quantbio/scRNA-seq/Ankylosating_spondylitis_Liu_2022/Seurat_GEXonly_FULLYPROCESSED_DEx_output.rds" # Name of the file to write the DE gene list as
 ---
 
 ```{css my-header-colors, echo = FALSE}
@@ -96,8 +97,7 @@ h1, h2, h3, h4, h5, h6, legend {
     font-size: 26px; /* Adjust the font size as per your preference */
     color: gray; /* Change the font color as per your preference */
 }
-```  
-
+```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE}
 ### Set knitr options
@@ -263,6 +263,7 @@ violin_me <- function(data, feature, colorz, theme, legend, title) {
     plot <- VlnPlot(data,
                    pt.size = 0,
                    features = feature,
+                   split.by = params$qcs_indent_var,
                    cols = colorz) +
         theme +
         theme(legend.position = legend)+
@@ -324,7 +325,7 @@ sample_boxplot <- function(dat, varz, theme, colorz,line) {
     ggplot(data=dat,
        aes(x=!!as.name(params$qcs_patient_id),
            y=value,
-           fill=!!as.name(params$qcs_patient_id)))+
+           fill=!!as.name(params$qcs_indent_var)))+
     stat_boxplot(geom="errorbar")+
     geom_hline(yintercept = line, linetype = "dashed", color = "red", size = 0.5)    +
     geom_boxplot()+
@@ -391,47 +392,84 @@ LetsMakeAHeatmap <- function(dex_data, pval, log2FC, seurat, variable, top_n,  s
                 )
            )
 }
+
+
 ```
 
-Data taken from [`r params$analysed_dataset`](https://0-www-ncbi-nlm-nih-gov.brum.beds.ac.uk/geo/query/acc.cgi?acc=GSE216456)
+<br> <br>
+
+# Introduction
+
+This is a automated script to [1] annotate cell types; [2] scale and normalize expression data; [3] remove dead cells, doublets, and outlying samples; and [3] perform dimension reduction and differential expression on expression data. **This script can take in more than a single seurat objects.**
+
+<br>
+
+<!-- Fill in this information (... or delete whole section) -->
+
+```{r echo=FALSE, out.width = "100%", fig.align = "left"}
+knitr::include_graphics("~/public-data/quantbio/scRNA-seq/Ankylosating_spondylitis_Liu_2022/Liu_AS_2022.jpg")
+```
+
+Data for this analysis was taken from [here](#https://www.nature.com/articles/s41591-021-01323-8) 
+
+<br>
+
+**Figure 1)** from `r params$analysed_dataset`. Cell types and subsets among PSA, PSO, and healthy individuals. (A) UMAP of SCTransform-normalized RNA expression integrated with ADT expression, colored by cell subset. (B) Mean percentages of each cell type within the total PBMCs of each subject. Error bars indicate standard error of the mean; * indicates both Wilcoxon and FDR-adjusted Kruskall-Wallis p-values < 0.05.
+
+<br>
+<br>
+
+<!-- End information to fill (or deletable section) -->
 
 # 1 - Quality control and standardization file (QCStanAnn)
-Perform quality control and standardization of single cell RNA-seq datasets.
+
+**In this section,** we perform quality control and standardization of single cell RNA-seq datasets.
 
 ```{r child = 'QCStan.Rmd', eval=params$QCS}
 ```
 
+<br> <br>
+
 # 2 - Annotation
-Perform cell type annotation of single cell RNA-seq datasets.
+
+**In this section,** we perform cell type annotation of single cell RNA-seq datasets. This chunk supports cell type annotation for human or moiuse cells only, and uses [SingleR](#https://bioconductor.org/packages/release/bioc/html/SingleR.html) to annotate cells. This identifies marker genes from the reference and uses them to compute assignment scores (based on the Spearman correlation across markers) for each cell in the test dataset against each label in the reference. The label with the highest score is the assigned to the test cell, possibly with further fine-tuning to resolve closely related labels. We prune low-soring cells in this section, as well.
 
 ```{r child = 'Ann.Rmd', eval=params$ANNO}
 ```
 
+<br> <br>
+
 # 3 - Differential Expression analysis
-Identify differentially expressed genes in scRNA-seq data
+
+**In this section,** we run dimension reduction (PCA, tSNE, and UMAP), clustering, and identify differentially expressed genes in the scRNA-seq data. This section is important if you want a final seurat object that includes dimension reduction in the object, we well as identifying markers for each cell type in the dataset.
 
 ```{r child = 'DEx.Rmd', eval=params$DEx}
 ```
+
+<br> <br>
 
 # Information about the Session {.tabset .tabset-pils}
 
 ## Input parameters
 
 <details>
+
 ```{r print-parameters}
 for (param in names(params)) {
   cat(param, ": ", params[[param]], "\n")
 }
 ```
+
 </details>
 
-##  Session information
+## Session information
 
 <details>
+
 <summary>Information about R, the OS and attached or loaded packages</summary>
+
 ```{r sesion_info}
 pander::pander(sessionInfo(), compact = FALSE)
 ```
+
 </details>
-
-

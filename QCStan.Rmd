@@ -7,35 +7,67 @@ editor_options:
 ```{r setup, include=FALSE, echo=FALSE}
 ### Set knitr global options
 knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+
+### Fix conflicts
+conflict_prefer("filter", "dplyr")
+conflict_prefer("count", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("slice", "dplyr")
+conflict_prefer("rename","dplyr")
+conflict_prefer("mutate","dplyr")
+conflict_prefer("arrange","dplyr")
+conflict_prefer("summarize", "dplyr")
+conflict_prefer("summarise", "dplyr")
+conflict_prefer("layout","plotly")
 ```
 
 > ***NOTE:*** Make sure the data is the unedited seurat file.
 
 ```{r load data}
 ###---------------------LOAD THE SEURAT OBJECT---------------------------------
-seurat_analysed <- readRDS(file=params$dir_seurat)
+if(params$is_list==TRUE & params$split_by_group==FALSE) {
+    seurats <- readRDS(file=params$dir_seurat)
+    
+    for(i in 1:length(seurats)) {
+        Idents(seurats[[i]]) <- seurats[[i]]@meta.data[,params$qcs_indent_var]
+        seurats[[i]][["percent.mt"]] <- PercentageFeatureSet(object = seurats[[i]], pattern = "^MT|^mt")
+    }
+    
+    } else {
+        
+    seurat_analysed <- readRDS(file=params$dir_seurat)
+    
+    # seurat_analysed@meta.data[,"orig.ident"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"orig.ident"])
+    # seurat_analysed@meta.data[,"Cell"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"Cell"])
+    # seurat_analysed@meta.data[,"patient_id"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"patient_id"])
 
-# seurat_analysed@meta.data[,"orig.ident"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"orig.ident"])
-# seurat_analysed@meta.data[,"Cell"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"Cell"])
-# seurat_analysed@meta.data[,"patient_id"] = gsub("BIOKEY", "Sample", seurat_analysed@meta.data[,"patient_id"])
+    ### Change ident to original idents
+    Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$qcs_indent_var]
 
-### Change ident to original idents
-Idents(seurat_analysed)<-seurat_analysed@meta.data[,params$qcs_indent_var]
+    ###------------------ADD mito.gene % IN METADATA--------------------------------
+    seurat_analysed[["percent.mt"]] <- PercentageFeatureSet(object = seurat_analysed, pattern = "^MT|^mt")
+    
+    ### Set identity
+    if(params$group_name=="none"){
+        seurat_analysed@meta.data$params_group<-"No group"
+    } else {
+        seurat_analysed@meta.data$params_group<-seurat_analysed@meta.data[,params$group_name]
+    }
+}
 
-###------------------ADD mito.gene % IN METADATA--------------------------------
-seurat_analysed[["percent.mt"]] <- PercentageFeatureSet(object = seurat_analysed, pattern = "^MT|^mt")
 
 ###---------FOR MULTIPLE BATCHES THAT NEED TO BE PROCESSED SEPARATELY----------
 ### This is often seen when CD45+ and CD45- are ran separately. The two extremely
 ### different cell types can have varying degrees of doublets and mitochondria
 ### gene expression. As such, they should be processed separately. If ran in a 
 ### single batch, then this is not necessary, but we'll still put it into a list.
-if(params$split_by_group==FALSE){
-    seurat_analysed@meta.data[,"group"]<-params$analysed_dataset
-    seurats<-SplitObject(seurat_analysed, split.by = "group")
-} else {
-    seurat_analysed@meta.data$params_group<-seurat_analysed@meta.data[,params$group_name]
+if(params$is_list==FALSE & params$split_by_group==TRUE) {
     seurats <- SplitObject(seurat_analysed, split.by = params$group_name)
+} 
+
+if(params$is_list==FALSE & params$split_by_group==FALSE) {
+    seurats<-list(seurat_analysed)
+    names(seurats)<-params$group_name
 }
 
 ###------------------DEFINE THE COLORS FOR REPORT------------------------------
@@ -49,8 +81,12 @@ for(i in 1:length(seurats)){
 
 ## 1.1 - Quality Control {.tabset .tabset-pils}
 
-Remove dead cells, doublets, and cells with low molecule counts Examine
-the following 3 parameters:
+
+In section 1.1, we remove dead cells, doublets, and samples that are flagged as outliers. In addition, we can remove genes that only show up in a set number of cells. For example, if the gene only shows up in 1/100,000 cells, it is worth removing.
+
+### Cell level (pre removal) {.tabset .tabset-pils}
+
+Here we will remove dead cells, doublets, and cells with low molecule counts. We do so by setting cut-offs for the following 3 parameters:
 
 1.  `nFeature_RNA` is the number of genes detected in each cell.
 2.  `nCount_RNA` is the total number of molecules detected within a cell
@@ -63,8 +99,6 @@ gene counts of molecule counts may indicate the presence of doublets,
 especially for droplet-based scRNA-seq like 10X. In addition, high
 mitochondrial gene percentages may indicate dead cells, which is common
 in plate-based scRNA-seq like smart-seq.
-
-### Cell level (pre removal) {.tabset .tabset-pils}
 
 ```{r pre-qc-cells, results="asis", fig.align='center', fig.height=6, fig.width=7,eval=params$qcs_eval_cell}
 ### Plot the three parameters mentioned above
@@ -121,7 +155,21 @@ for(i in 1:length(seurats)) {
 
 ### Cell level (post removal){.tabset .tabset-pils}
 
-```{r post-qc-cells, results="asis", fig.align='center', fig.height=6, fig.width=7,eval=params$qcs_eval_cell}
+Here we will remove dead cells, doublets, and cells with low molecule counts. We do so by setting cut-offs for the following 3 parameters:
+
+1.  `nFeature_RNA` is the number of genes detected in each cell.
+2.  `nCount_RNA` is the total number of molecules detected within a cell
+3.  `percent.mt` is the percent of features that are mitochondrial genes
+
+**NOTE**
+
+There are several things to consider. For one, a much higher number of
+gene counts of molecule counts may indicate the presence of doublets,
+especially for droplet-based scRNA-seq like 10X. In addition, high
+mitochondrial gene percentages may indicate dead cells, which is common
+in plate-based scRNA-seq like smart-seq.
+
+```{r post-qc-cells, results="asis", fig.align='center', fig.height=6, fig.width=10,eval=params$qcs_eval_cell}
 post_plots<-list()
 for (i in 1:length(seurats)) {
     p1 <- eval(substitute(
@@ -156,10 +204,11 @@ cat("\n \n \n")
 
 ### Gene level
 
-This section is **code only**. You can hit the "code" button to reveal the underlying code to remove low count genes.
-There may be genes with zero counts across all cells too. These reduce the average expression for a cell and should be removed, as well. For
-our data we choose to keep only genes which are expressed in
-**`r params$qcs_ncells` or more cells**.
+Here we remove genes that only show up in a certain number of cells. You can hit the "code" button to reveal the underlying code to remove low count genes. There may be genes with zero counts across all cells too. These reduce the average expression for a cell and should be removed, as well. For our data we choose to keep only genes which are expressed in **`r params$qcs_ncells` or more cells**. 
+
+<br>
+
+This subsection is **code only**. Hit the "code" button to reveal the code.
 
 ```{r remake-seurat, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Create the new seurat object
@@ -179,7 +228,7 @@ seurats <- lapply(X = seurats, FUN = function(x) {
 
 ### Sample level {.tabset .tabset-pils}
 
-This will remove whole samples if the sample meets the following
+Here we remove samples that are flagged as outliers. This will remove whole samples if the sample meets the following
 criteria:
 
 -   Is sample **UMI median below 25% quantile** of the UMI count of the
@@ -352,14 +401,11 @@ for (i in 1:length(seurats)){
 
 ## 1.2 - Standardize {.tabset .tabset-pils}
 
+In this section, we normalize the data, regress out confounding variables, and scale the data. Each tab provides more detail.
 
 ### Normalize the data
 
-This section is **code only**. For data normalization, we use `NormalizeDatas()` that normalizes the
-feature expression measurements for each cell by the total expression,
-multiplies this by a scale factor (10,000 by default), and
-log-transforms the result. Normalized values are stored in
-**[["RNA"]]@data**.
+This subsection is **code only**. Hit the "code" button to reveal the code. For data normalization, we use `NormalizeDatas()` that normalizes the feature expression measurements for each cell by the total expression, multiplies this by a scale factor (10,000 by default), and log-transforms the result. Normalized values are stored in **[["RNA"]]@data**. 
 
 ```{r normalize-date, tidy='styler', tidy.opts=list(strict=FALSE), eval=params$qcs_normalize}
 seurats <- lapply(X=seurats, FUN=function(x) {
@@ -431,9 +477,7 @@ cat("\n \n \n")
 
 ### Scale the data
 
-This section is **code only**. Next, we apply a linear transformation ('scaling') that is a standard
-pre-processing step prior to dimensional reduction techniques like PCA.
-The `ScaleData()` function:
+This subsection is **code only**. Hit the "code" button to reveal the code. Next, we apply a linear transformation ('scaling') that is a standard pre-processing step prior to dimensional reduction techniques like PCA. The `ScaleData()` function:
 
 1.  Shifts the expression of each gene, so that the mean expression
     across cells is 0
@@ -476,9 +520,11 @@ if (params$qcs_scale_genes=="all") {
 
 ## 1.3 - Identify the cell cycle phase for each cell
 
+Here we infer the cell cycle phase in which the each cell is suspected to be in based on gene expression levels of cell cycle markers.
+
 ### Score the cell cycle
 
-This section is **code only**. 
+This subsection is **code only**. Hit the "code" button to reveal the code.
 
 ```{r cell-cycle-intro, include=FALSE, eval=params$qcs_cc}
 qcs_cc_text = "This is done by calculating the G2M marker score with the `CellCycleScoring()` function provided in the _seurat package_."
@@ -493,7 +539,7 @@ if (params$organism=="human") {
 ### cell cycle using Seurat's built-in cc.genes (cell cycle) genes list
 g2m.genes <- cc.genes$g2m.genes
 s.genes <- cc.genes$s.genes
-g2m <- rownames(seurat_analysed)[rownames(seurat_analysed) %in% g2m.genes]
+g2m <- rownames(seurats[[1]])[rownames(seurats[[1]]) %in% g2m.genes]
 
 } else if (params$organism=="mouse") {
   cc_file <- RCurl::getURL("https://raw.githubusercontent.com/hbc/tinyatlas/master/cell_cycle/Mus_musculus.csv") 
@@ -536,7 +582,7 @@ g2m <- rownames(seurat_analysed)[rownames(seurat_analysed) %in% g2m.genes]
   g2m.genes <- cell_cycle_markers %>%
                 dplyr::filter(phase == "G2/M") %>%
                 dplyr::pull("gene_name")
-}
+} 
 
 
 ### [2] Calculate G2M marker module score.

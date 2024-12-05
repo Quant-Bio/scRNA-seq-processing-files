@@ -2,6 +2,18 @@
 ### Set knitr global options
 knitr::opts_chunk$set(warning=FALSE, message=FALSE)
 
+### Fix conflicts
+conflict_prefer("filter", "dplyr")
+conflict_prefer("count", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("slice", "dplyr")
+conflict_prefer("rename","dplyr")
+conflict_prefer("mutate","dplyr")
+conflict_prefer("arrange","dplyr")
+conflict_prefer("summarize", "dplyr")
+conflict_prefer("summarise", "dplyr")
+conflict_prefer("layout","plotly")
+
 ### Establish color schemes and themes needed
 
 theme_sara_90 <- function() {
@@ -545,12 +557,33 @@ if (file.exists(params$dex_mat_save_name)){
     write_rds(DE_seurats, file=params$dex_mat_save_name)
     text<-paste0("DEX data source: ","DE file created and data written successfully.")
 }
+
+text
 ```
 
 
+
+<br>
+<br>
+
+### DEGs table
+
+```{r degs-table, results="asis", fig.cap="Heatmap of top 5 Differentially Expressed Genes", tidy='styler', tidy.opts=list(strict=FALSE),eval=params$dex_run_dex}
+### Print the heatmaps
+for (i in 1:length(seurats)){
+print(glue::glue("#### {as.vector(names(seurats[i]))}\n"))
+ DE_seurats[[i]] |> render_dt()
+cat("\n \n \n")
+}
+
+```
+
+<br>
+<br>
+
 ### DEGs heatmap {.tabset .tabset-pils}
 
-```{r, results="asis", fig.height=14, fig.width=16, fig.cap="Heatmap of top 5 Differentially Expressed Genes", tidy='styler', tidy.opts=list(strict=FALSE),eval=params$dex_run_dex}
+```{r, degs-heatmap, results="asis", fig.height=14, fig.width=16, fig.cap="Heatmap of top 5 Differentially Expressed Genes", tidy='styler', tidy.opts=list(strict=FALSE),eval=params$dex_run_dex}
 ### Make a list of a list. These are the items necessary to make a heatmap
 heatmap_stuff<-list()
 for(i in 1:length(DE_seurats)) {
