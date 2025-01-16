@@ -100,7 +100,7 @@ especially for droplet-based scRNA-seq like 10X. In addition, high
 mitochondrial gene percentages may indicate dead cells, which is common
 in plate-based scRNA-seq like smart-seq.
 
-```{r pre-qc-cells, results="asis", fig.align='center', fig.height=6, fig.width=7,eval=params$qcs_eval_cell}
+```{r pre-qc-cells, results="asis", fig.align='center', fig.height=12, fig.width=10, eval=params$qcs_eval_cell}
 ### Plot the three parameters mentioned above
 pre_plots<-list()
 for (i in 1:length(seurats)) {
@@ -112,7 +112,7 @@ for (i in 1:length(seurats)) {
             violin_me(seurats[[i]], "nCount_RNA",colorz = colz[[i]], themes$QB_theme_90_small(), legend="none")+ggtitle("UMI count",subtitle=paste0(names(seurats[i]))),
             violin_me(seurats[[i]], "percent.mt",colorz = colz[[i]], themes$QB_theme_90_small(), legend="none")+ggtitle("% MT genes",subtitle=paste0(names(seurats[i]))),
             
-            ncol=3.  ### For column count
+            ncol=1  ### For column count
             
             )
 
@@ -169,7 +169,7 @@ especially for droplet-based scRNA-seq like 10X. In addition, high
 mitochondrial gene percentages may indicate dead cells, which is common
 in plate-based scRNA-seq like smart-seq.
 
-```{r post-qc-cells, results="asis", fig.align='center', fig.height=6, fig.width=10,eval=params$qcs_eval_cell}
+```{r post-qc-cells, results="asis", fig.align='center', fig.height=12, fig.width=10, eval=params$qcs_eval_cell}
 post_plots<-list()
 for (i in 1:length(seurats)) {
     p1 <- eval(substitute(
@@ -180,7 +180,7 @@ for (i in 1:length(seurats)) {
             violin_me(seurats[[i]], "nCount_RNA",colorz = colz[[i]], themes$QB_theme_90_small(), legend="none")+ggtitle("UMI count",subtitle=paste0(names(seurats[i]))),
             violin_me(seurats[[i]], "percent.mt",colorz = colz[[i]], themes$QB_theme_90_small(), legend="none")+ggtitle("% MT genes",subtitle=paste0(names(seurats[i]))),
             
-            ncol=3.  ### For column count
+            ncol=1  ### For column count
             
             )
 
@@ -244,7 +244,7 @@ We use quantiles as opposed to 3 x MAD because the bottom 3 x MAD will
 go into a negative value, which does nothing.
 
 
-```{r qc-samples, results="asis", eval=params$qcs_eval_sample, fig.height=6, fig.width=8}
+```{r qc-samples, results="asis", eval=params$qcs_eval_sample, fig.height=12, fig.width=10}
 ### Plot the density of gene expression values by sample
 m.melts<-list()
 for(i in 1:length(seurats)){
@@ -310,7 +310,7 @@ for(i in 1:length(m.melts)){
                                line=cutoffs[[i]]["nFeature_RNA"]),
                 sample_boxplot(dat= m.melts[[i]] |> filter(variable==variables[3]), varz=variables[3],  theme=themes$QB_theme_90_small(), colorz=colz[[i]],
                                line=cutoffs[[i]]["percent.mt"]),
-                ncol = 3
+                ncol = 1
                 
      ),
      list(i = i)))

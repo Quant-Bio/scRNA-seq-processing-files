@@ -450,7 +450,7 @@ seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$Sin
 ## 2.4 - Write to file
 The annotation is done, the file is save on **_`r params$anno_save_name`_**.
 
-```{r, include=FALSE, eval=params$anno_save,eval=FALSE}
+```{r, include=FALSE, eval=params$anno_save}
 ### Merge it and write final object
 write_rds(seurats, file=params$anno_save_name)
 ```
