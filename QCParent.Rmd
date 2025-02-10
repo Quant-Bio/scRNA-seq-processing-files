@@ -1,0 +1,475 @@
+---
+title: "Single cell analysis: `r params$analysed_dataset`"
+date: "Analysed on `r format(Sys.time(), '%B %d, %Y')`"
+author: "QuantBio `r params$more_authors`"
+output:
+  rmdformats::readthedown: 
+      self_contained: true
+      thumbnails: false
+      lightbox: true
+      gallery: false
+      highlight: kate
+      toc_float: yes
+      code_folding: hide
+      toc_depth: 5
+params:
+  analysed_dataset: "Adams et al idiopathic pulmonary fibrosis (IPF)"
+  more_authors: "Rosa Hernansaiz, Vincent Perez, and Jen Modliszewski"
+  dir_seurat: "~/public-data/quantbio/scRNA-seq/IPF_adams_2020/Seurat_IPF_adams.rds"
+  is_list: FALSE
+  split_by_group: FALSE
+  group_name: "none" ### This splits the seurat into a list of seurats based on a group. If there is no group, place "none"
+  
+#---------------------QUALITY CONTROL AND STANDARDIZATION-----------------------
+  QCS: TRUE
+  organism: "human" # Organism used in the experiment. Options are "mouse" and "human".
+  qcs_indent_var: "Subject_Identity" # Default identity of cells in metadata
+  qcs_eval_cell: TRUE
+  qcs_std_nFeature_RNA: 200 # Lowest value of nFeature_RNA before cells are pruned
+  qcs_vars_regress: ["nCount_RNA", "percent.mt"] # Variables to regress out
+  qcs_ncells: 10 # Lowest number of cells that express a gene before pruning the gene
+  qcs_nfeatures: 10 # Lowest number of genes in a cell before pruning a cell
+  qcs_patient_id: "Subject_Identity" # This will change depending on the experiment
+  qcs_count_cutoff: "NA" # Numerical value to set for the sample-level nFeature_RNA
+  qcs_feature_cutoff: "NA" # Numerical value to set for sample-level nCount_RNA
+  qcs_mt_cutoff: "NA" # Numerical value to set for sample-level mt.percent
+  qcs_eval_sample: TRUE # whether or not to drop samples based on their outlier status
+  qcs_normalize: TRUE ### to normalize and log transform the data
+  qcs_variation_eval: TRUE
+  qcs_scale: TRUE ### To scale the data or not
+  qcs_scale_genes: default ### Gene list for scaling. Use "all" for all genes in seurat or "default" for the top 2k
+  qcs_cc: TRUE # Set true if you want to add cell cycle phase for each cell to metadata
+  qcs_save: TRUE # set false if you don't want to save the file
+  qcs_save_name: "~/public-data/quantbio/scRNA-seq/IPF_adams_2020/Seurat_IPF_adams_QCS.rds" # Name of the file to write new seurat object as
+
+#------------------ANNOTATE THE CELLS WITH TYPE AND PHASE-----------------------
+  ANNO: TRUE # Set true to annotate the seurat object with cell types
+  anno_annotation: "HumanAtlas" # Reference for cell annotations. Current options are human "HumanAtlas" and mouse "ImmGenData"
+  anno_singleR: TRUE # Make sure qcs_save_file contains the ALSO the annotation with sigleR
+  anno_Others: ["Embryonic_stem_cells","GMP","Hepatocytes","iPS_cells","Keratinocytes","MSC","Neuroepithelial_cell","Neurons"] # These rare cells are collapsed into others
+  anno_cutoff: 10 # Lowest count for a cell type before its collapsed into "Other"
+  anno_Bcells: ["Pro-B_cell_CD34+","Pre-B_cell_CD34-","B_cell"] # These cells are collapsed into B cells
+  anno_HCS: ["HSC_-G-CSF","HSC_CD34+"] # These cells are collapsed into HSC cells
+  anno_fibroblast: ["Fibroblasts", "Chondrocytes","Smooth_muscle_cells","Tissue_stem_cells"] # These cells are collapsed into fibroblasts
+  anno_save: TRUE # set false if you don't want to save the file
+  anno_save_name:  "~/public-data/quantbio/scRNA-seq/IPF_adams_2020/Seurat_IPF_adams_ANNO.rds" # Name of the file to write new seurat object
+  
+#------------------CLUSTERING AND DIFFERNTIAL EXPRESSION------------------------
+  DEx: TRUE # Set true if you want to run this section
+  dex_confounding: FALSE # Set true if you want to check for confounding variables
+  dex_categorical_vars: ["timepoint","Phase"] # This is required. It checks to see if a categorical variable is associated with the principal components 1 through 10. If so, it may confound the data.
+  dex_numerical_vars: ["nCount_RNA","nFeature_RNA","percent.mt"] # This is required. It checks to see if a numerical variable is associated with the principal components 1 through 10. If so, it may confound the data.
+  dex_ident: "SingleR2" # Cell labels to run differential expression on
+  dex_cluster_algorithm: 1 # Clustering algorithm to use (1 = louvain, 2 = louvain with multilevel)
+  dex_variance_explained: 0.8 # Percentage of variance explained by # of PCs
+  dex_run_dex: FALSE # Set false if you do not want to run differential expression. A file will still be written with PCA, UMAP, and tSNE metadata
+  dex_write_dex_seurat: TRUE
+  dex_min_pct: 0.25 # Minimum percent of cells a gene can be expressed in to be identified as significant
+  dex_only_positive: TRUE # If you want only examine positively expressed genes use this.
+  dex_logfc_threshold: 0.0 # FC threshold for significant genes
+  dex_p_val_adj: 0.1 # P value threshold for significant genes
+  dex_seurat_save_name: "~/public-data/quantbio/scRNA-seq/IPF_adams_2020/Seurat_IPF_adams_FULLYPROCESSED.rds" # Name of the file to write new seurat object in
+  dex_mat_save_name: "~/public-data/quantbio/scRNA-seq/IPF_adams_2020/Seurats_IPF_adams_DEx_output.csv" # Name of the file to write the DE gene list as
+---
+
+```{css my-header-colors, echo = FALSE}
+#sidebar {
+  background: black;
+}
+#postamble {
+  background: orange;
+  border-top:solid 10px gray;
+}
+.title {
+  text-align: center;
+  color: orange;
+}
+.subtitle {
+  color: orange;
+}
+h1, h2, h3, h4, h5, h6, legend {
+  color: orange;
+}
+#content h2 {
+    background-color: grey;
+}
+.custom-text {
+    font-size: 26px; /* Adjust the font size as per your preference */
+    color: gray; /* Change the font color as per your preference */
+}
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE}
+### Set knitr options
+options(knitr.duplicate.label = 'allow')
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, echo = TRUE,
+                      tidy='styler', tidy.opts=list(strict=FALSE))
+
+### Be reproducible
+set.seed(123)
+
+###------------------------------LIBRARIES--------------------------------------
+### QCS libraries
+library(here)
+library(data.table)
+library(Seurat)
+library(readr)
+library(cowplot)
+library(plyr)
+library(ggplot2)
+require(styler)
+library(conflicted)
+library(tidyverse)
+
+### Annotation
+library(SingleR)
+library(glmnet)
+library(forcats)
+# library(infercnv)
+library(biomaRt)
+library(janitor)
+library(BiocParallel)
+library(parallel)
+library(celldex)
+library(viridis)
+library(pheatmap)
+
+### Differential expression
+library(ComplexHeatmap)
+library(annotate)
+library(scales)
+library(RColorBrewer)
+library(readxl)
+library(ggpubr)
+library(circlize)
+
+
+### Fix conflicts
+conflict_prefer("filter", "dplyr")
+conflict_prefer("count", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("slice", "dplyr")
+conflict_prefer("rename","dplyr")
+conflict_prefer("mutate","dplyr")
+conflict_prefer("arrange","dplyr")
+conflict_prefer("summarize", "dplyr")
+conflict_prefer("summarise", "dplyr")
+conflict_prefer("layout","plotly")
+
+###----------------------------THEMES AND COLORS-------------------------------
+themes<-readRDS(file="~/public-data/quantbio/Rthemes/themes.rds")
+cell.cols<-readRDS(file="~/public-data/quantbio/Rthemes/SingleR_cols.rds")
+mouse.cell.cols<-readRDS(file="~/public-data/quantbio/Rthemes/SingleR_mouse_cols.rds")
+cols <- colorRamp2( c(0.0,0.5,8.25), c("white","orangered2","black"))
+phase.colors <- c("G1"="#BF6ECA",
+               "G2M"="#ACDE7C",
+               "S"="#BEBEBB")
+
+### schemes for a variety of categories. For more color schemes - https://carto.com/carto-colors/
+palette1 <- c(rcartocolor::carto_pal(n=6, "OrYel"),
+             rcartocolor::carto_pal(n=6, "Sunset"),
+             rcartocolor::carto_pal(n=6, "Peach"),
+             rcartocolor::carto_pal(n=6, "SunsetDark"),
+             rcartocolor::carto_pal(n=6, "Purp"))
+
+palette2 <- c(rcartocolor::carto_pal(n=6, "Geyser"),
+             rcartocolor::carto_pal(n=6, "ag_Sunset"),
+             rcartocolor::carto_pal(n=6, "ArmyRose"),
+             rcartocolor::carto_pal(n=6, "Safe"),
+             rcartocolor::carto_pal(n=6, "Earth"))
+
+palette3 <- c(rcartocolor::carto_pal(n=6, "Geyser"),
+             rcartocolor::carto_pal(n=6, "OrYel"),
+             rcartocolor::carto_pal(n=6, "ArmyRose"),
+             rcartocolor::carto_pal(n=6, "SunsetDark"),
+             rcartocolor::carto_pal(n=6, "Earth"))
+# scales::show_col(palette3)
+
+###--------------------------------FUNCTIONS---------------------------------- 
+### Table function
+render_dt <- function(x){
+  DT::datatable(x,
+                extensions = 'Buttons',
+                rownames = FALSE,
+                options = list(dom = 'Blfrtip',
+                               buttons = c('copy', 'csv'),
+                               lengthMenu = list(c(10,25,50,-1),
+                                                 c(10,25,50,"All")))) |> 
+    DT::formatStyle(columns = colnames(x), fontSize = '80%')
+}
+
+### Sample color function
+get_colorz <- function(length, palette, names) {
+  if (length <= 20) {
+    colorz <- sample(palette, size = length, replace = FALSE)
+  } else {
+    colorz <- colorRampPalette(palette)(length)
+  }
+  names(colorz)<-names
+  return(colorz)
+}
+
+### Identify confounding categorical variables
+anova_PCA <- function(obj_name, pca.df, metadata, merge_ID, cat_var, numPCs) {
+  names(cat_var) <- cat_var
+  ind.pca.df <- as.data.frame(pca.df[["ind"]][["coord"]][,1:numPCs])
+  ind.pca.df[[merge_ID]] <- rownames(ind.pca.df)
+  ind.pca.wcat.df <- merge(ind.pca.df, metadata, by=merge_ID, all.x=TRUE, all.y=FALSE)
+  endCol <- length(names(ind.pca.df))
+  ind.pca.an <- ind.pca.wcat.df[,2:endCol]
+  anovaPvalueList <- lapply(cat_var, function(f) apply(ind.pca.an, 2, function(x) anova(aov(x ~ as.factor(ind.pca.wcat.df[[f]])))$`Pr(>F)`[1]))
+  res.pval <- plyr::ldply(anovaPvalueList, .id="Factor")
+  setnames(res.pval, names(res.pval), c("Factor", paste0("Dim", seq(1:numPCs),  "_pvalue")))
+  endCol2 <- numPCs+1
+  if (length(cat_var) == 1) {
+    res.padj <- data.frame(t(apply(res.pval[,2:endCol2], 2, function(x) p.adjust(x, method="BH"))))
+  } else {
+    res.padj <- data.frame(apply(res.pval[,2:endCol2], 2, function(x) p.adjust(x, method="BH")))
+  }
+  names(res.padj) <- gsub("_pvalue", "_adj_pvalue", names(res.padj))
+  res.padj$Factor <- res.pval$Factor
+  res_all.df <- list(res.pval, res.padj) %>% purrr::reduce(full_join, by="Factor")
+  res_all_ord.df <- res_all.df[,order(colnames(res_all.df))]
+  return(res_all_ord.df)
+}
+
+### Identify confounding continuous variables
+glm_PCA <- function(obj_name, pca.list, metadata, merge_ID, num_var, numPCs=10) {
+  names(num_var) <- num_var
+  ind.pca.df <- as.data.frame(pca.list[["ind"]][["coord"]][,1:numPCs])
+  ind.pca.df[[merge_ID]] <- rownames(ind.pca.df)
+  ind.pca.wnum.df <- merge(ind.pca.df, metadata, by=merge_ID, all.x=TRUE, all.y=FALSE)
+  endCol <- length(names(ind.pca.df))
+  ind.pca.an <- ind.pca.wnum.df[,2:endCol]
+  glmPvalueList <-lapply(num_var, function(f) apply(ind.pca.an, 2, function(x) summary(glm(x ~ as.numeric(ind.pca.wnum.df[[f]])))$coefficients[2,4]))
+  res.df <- plyr::ldply(glmPvalueList, .id="Factor")
+  setnames(res.df, names(res.df), c("Factor", paste0("Dim", seq(1:numPCs),  "_pvalue")))
+  endCol2 <- numPCs+1
+  if (length(num_var) == 1) {
+    res.padj <- data.frame(t(apply(res.df[,2:endCol2], 2, function(x) p.adjust(x, method="BH"))))
+  } else {
+    res.padj <- data.frame(apply(res.df[,2:endCol2], 2, function(x) p.adjust(x, method="BH")))
+  }
+  names(res.padj) <- gsub("_pvalue", "_adj_pvalue", names(res.padj))
+  res.padj$Factor <- res.df$Factor
+  setcolorder(res.padj, "Factor")
+  res_all.df <- list(res.df, res.padj) %>% purrr::reduce(full_join, by="Factor")
+  res_all_ord.df <- res_all.df[,order(colnames(res_all.df))]
+  return(res_all_ord.df)
+}
+
+### Violin plots
+violin_me <- function(data, feature, colorz, theme, legend, title) {
+    plot <- VlnPlot(data,
+                   pt.size = 0,
+                   features = feature,
+                   split.by = params$qcs_indent_var,
+                   cols = colorz) +
+        theme +
+        theme(legend.position = legend)+
+        xlab("")
+        
+  return(plot)
+}
+
+### Plots for dimension reductions (PCA, UMAP, tSNE)
+generate_dim_plot <- function(data, reduction, group_by, colors,
+                              label, label.size, label.box, repel) {
+  if(missing(label)) {
+    plot <- DimPlot(
+    data,
+    reduction = reduction,
+    group.by = group_by,
+    cols = colors,
+    pt.size = 0.25,
+    raster=FALSE
+  ) +
+  themes$QB_theme() +
+    labs(subtitle=paste0("Colored by ", group_by),
+         x="UMAP 1",
+         y="UMAP 2") +
+    theme(
+      axis.title.y = element_text(),
+      axis.title.x = element_text()
+  )
+  
+  return(plot)
+    } else {
+      plot <- DimPlot(
+    data,
+    reduction = reduction,
+    group.by = group_by,
+    label=label, 
+    label.size = label.size,
+    label.box = label.box,
+    repel= repel,
+    cols = colors,
+    pt.size = 0.25,
+    raster=FALSE
+  ) +
+  themes$QB_theme() +
+    labs(subtitle=paste0("Colored by ", group_by),
+         x="UMAP 1",
+         y="UMAP 2") +
+    theme(
+      axis.title.y = element_text(),
+      axis.title.x = element_text()
+  )
+  
+  return(plot)
+    }
+}
+
+### Boxplots for sample 
+sample_boxplot <- function(dat, varz, theme, colorz,line) {
+    ggplot(data=dat,
+       aes(x=!!as.name(params$qcs_patient_id),
+           y=value,
+           fill=!!as.name(params$qcs_indent_var)))+
+    stat_boxplot(geom="errorbar")+
+    geom_hline(yintercept = line, linetype = "dashed", color = "red", size = 0.5)    +
+    geom_boxplot()+
+    theme +
+    guides(fill="none") +
+    scale_fill_manual(paste0("Colored by ",params$qcs_indent_var), values=colorz) +
+    ylab("Count")+
+    ggtitle(if (varz == "nCount_RNA") {
+        "UMI count"
+        } else if (varz == "nFeature_RNA") {
+            "Gene count"
+            } else if (varz == "percent.mt") {
+                "Percent mitochondrial genes"
+                } else {
+                    "unknown"
+                    }
+        )
+}
+
+### Super complex heatmap function (probably can be improved)
+LetsMakeAHeatmap <- function(dex_data, pval, log2FC, seurat, variable, top_n,  sample_size) {
+    
+    ### Define significant DE genes
+    sigs <- dex_data %>%                                    ### data parameter
+        dplyr::filter(p_val_adj<= pval,                     ### pvalue parameter
+                      avg_log2FC>=log2FC)                   ### log2FC parameter
+    sigs$cluster<-droplevels(sigs$cluster)
+    
+    ### Identify top 10 DE genes
+    top  <- sigs %>%  
+        group_by(cluster) %>%
+        top_n(n= top_n, #5,                                 ### top_n parameter
+              wt=avg_log2FC)
+    
+    ### Set levels for visualization effects. 
+    ### Sorts the heatmaps rows from least to greatest variable counts.
+    Idents(seurat)<-seurat@meta.data[, variable]    ### variable parameter
+    lvls<-as.data.frame(sort(table(seurat@meta.data[,variable]), ### variable parameter 
+                             decreasing = TRUE))
+
+    ### Downsample the seurat for heatmap matrix
+    seurat_sample<-subset(seurat, downsample=sample_size)    ### Sample size argument
+        
+    ### Ensure top10 object has same levels as above
+    top <- top %>%  
+        mutate(cluster =  factor(cluster, levels = lvls$Var1)) %>%
+        arrange(cluster) %>%
+        mutate(avg_log2FC=round(avg_log2FC,2)) %>%
+        rename("Gene"="gene")
+
+    ### Annotate duplicated and if it is a GOI
+    tmp3 <- as.data.frame(table(top$Gene))
+    top <- top %>% mutate(Duplicated=if_else(Gene %in% tmp3$Var1[which(tmp3$Freq>1)], "Yes", "No"))
+    
+    ### Create the mat that will go into the Heatmap() argument
+    mat<-as.data.frame(LayerData(seurat_sample, assay="RNA", layer="data")) ### seurat argument
+    mat<-mat[top$Gene,]
+        
+    return(list("sigs"= sigs,
+                "top"= top, 
+                "lvls"=lvls,
+                "seurat_sample"= seurat_sample, 
+                "mat"= mat 
+                )
+           )
+}
+
+
+```
+
+<br> <br>
+
+# Introduction
+
+This is a automated script to [1] annotate cell types; [2] scale and normalize expression data; [3] remove dead cells, doublets, and outlying samples; and [3] perform dimension reduction and differential expression on expression data. **This script can take in more than a single seurat objects.**
+
+<br>
+
+<!-- Fill in this information (... or delete whole section) -->
+
+```{r echo=FALSE, out.width = "100%", fig.align = "left"}
+knitr::include_graphics("~/public-data/quantbio/scRNA-seq/IPF_adams_2020/adams_fig1.jpeg")
+```
+
+Data for this analysis was taken from [here](#https://www.science.org/doi/10.1126/sciadv.aba1983) 
+
+<br>
+
+**Figure 1)** Legend from `r params$analysed_dataset`: **A)** Overview of experimental design. (i) Disease lung explants and unused donor lungs collected. (ii) Lungs dissociated to single-cell suspension. (iii) Droplet-based scRNA-seq library preparation (iv) sequencing. (v) Exploratory analysis. (vi) Spatial localization with IHC. **(B)** Uniform Manifold Approximation and Projection (UMAP) representation of 312,928 cells from 32 IPF, 18 COPD, and 28 control donor lungs; each dot represents a single cell, and cells are labeled as one of 38 discrete cell varieties. AT, alveolar type; cDC, classical dendritic cell; pDC, plasmacytoid dendritic cell; M, macrophage; NK, natural killer; ILC, innate lymphoid cell; PNEC, pulmonary neuroendocrine cell; SMC, smooth muscle cell; VE, vascular endothelial. **(C)** Heat map of marker genes for all 38 identified cell types, categorized into four broad cell categories. Each cell type is represented by the top five genes ranked by false discovery rate (FDR) adjusted P value of a Wilcoxon rank sum test between the average expression per subject value for each cell type against the other average subject expression of the other cell types in their respective grouping. Each column represents the average expression value for one subject, hierarchically grouped by disease status and cell type. Gene expression values are unity normalized from 0 to 1 across rows within each categorical cell type group. 
+
+<br>
+<br>
+
+<!-- End information to fill (or deletable section) -->
+
+# 1 - Quality control and standardization file (QCStanAnn)
+
+**In this section,** we perform quality control and standardization of single cell RNA-seq datasets.
+
+```{r child = 'QCStan.Rmd', eval=params$QCS}
+```
+
+<br> <br>
+
+# 2 - Annotation
+
+**In this section,** we perform cell type annotation of single cell RNA-seq datasets. This chunk supports cell type annotation for human or moiuse cells only, and uses [SingleR](#https://bioconductor.org/packages/release/bioc/html/SingleR.html) to annotate cells. This identifies marker genes from the reference and uses them to compute assignment scores (based on the Spearman correlation across markers) for each cell in the test dataset against each label in the reference. The label with the highest score is the assigned to the test cell, possibly with further fine-tuning to resolve closely related labels. We prune low-soring cells in this section, as well.
+
+```{r child = 'Ann.Rmd', eval=params$ANNO}
+```
+
+<br> <br>
+
+# 3 - Differential Expression analysis
+
+**In this section,** we run dimension reduction (PCA, tSNE, and UMAP), clustering, and identify differentially expressed genes in the scRNA-seq data. This section is important if you want a final seurat object that includes dimension reduction in the object, we well as identifying markers for each cell type in the dataset.
+
+```{r child = 'DEx.Rmd', eval=params$DEx}
+```
+
+<br> <br>
+
+# Information about the Session {.tabset .tabset-pils}
+
+## Input parameters
+
+<details>
+
+```{r print-parameters}
+for (param in names(params)) {
+  cat(param, ": ", params[[param]], "\n")
+}
+```
+
+</details>
+
+## Session information
+
+<details>
+
+<summary>Information about R, the OS and attached or loaded packages</summary>
+
+```{r sesion_info}
+pander::pander(sessionInfo(), compact = FALSE)
+```
+
+</details>
