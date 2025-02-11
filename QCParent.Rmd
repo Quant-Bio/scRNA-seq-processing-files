@@ -13,9 +13,13 @@ output:
       code_folding: hide
       toc_depth: 5
 params:
-  analysed_dataset: "Adams et al idiopathic pulmonary fibrosis (IPF)"
   more_authors: "Rosa Hernansaiz, Vincent Perez, and Jen Modliszewski"
-  dir_seurat: "~/public-data/quantbio/scRNA-seq/IPF_adams_2020/Seurat_IPF_adams.rds"
+#-----------------------------ABOUT THE DATASET --------------------------------
+  analysed_dataset: "Chen et al lymphoma, 2024"
+  dataset_source: "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE245920"
+  dir_seurat: "~/public-data/quantbio/scRNA-seq/Lymphoma_Chen_2024/Seurat_lymphoma_chen.rds"
+  figure1: "~/public-data/quantbio/scRNA-seq/Lymphoma_Chen_2024/Chen_abstract.png"
+  figure1_legend: "Above is the abstract from the Chen et al, 2024 lymphoma single-cell dataset."
   is_list: FALSE
   split_by_group: FALSE
   group_name: "none" ### This splits the seurat into a list of seurats based on a group. If there is no group, place "none"
@@ -23,13 +27,13 @@ params:
 #---------------------QUALITY CONTROL AND STANDARDIZATION-----------------------
   QCS: TRUE
   organism: "human" # Organism used in the experiment. Options are "mouse" and "human".
-  qcs_indent_var: "Subject_Identity" # Default identity of cells in metadata
+  qcs_indent_var: "sample" # Default identity of cells in metadata
   qcs_eval_cell: TRUE
   qcs_std_nFeature_RNA: 200 # Lowest value of nFeature_RNA before cells are pruned
   qcs_vars_regress: ["nCount_RNA", "percent.mt"] # Variables to regress out
   qcs_ncells: 10 # Lowest number of cells that express a gene before pruning the gene
   qcs_nfeatures: 10 # Lowest number of genes in a cell before pruning a cell
-  qcs_patient_id: "Subject_Identity" # This will change depending on the experiment
+  qcs_patient_id: "sample" # This will change depending on the experiment
   qcs_count_cutoff: "NA" # Numerical value to set for the sample-level nFeature_RNA
   qcs_feature_cutoff: "NA" # Numerical value to set for sample-level nCount_RNA
   qcs_mt_cutoff: "NA" # Numerical value to set for sample-level mt.percent
@@ -40,7 +44,7 @@ params:
   qcs_scale_genes: default ### Gene list for scaling. Use "all" for all genes in seurat or "default" for the top 2k
   qcs_cc: TRUE # Set true if you want to add cell cycle phase for each cell to metadata
   qcs_save: TRUE # set false if you don't want to save the file
-  qcs_save_name: "~/public-data/quantbio/scRNA-seq/IPF_adams_2020/Seurat_IPF_adams_QCS.rds" # Name of the file to write new seurat object as
+  qcs_save_name: "_QCS" # Name of the file to write new seurat object as
 
 #------------------ANNOTATE THE CELLS WITH TYPE AND PHASE-----------------------
   ANNO: TRUE # Set true to annotate the seurat object with cell types
@@ -52,24 +56,24 @@ params:
   anno_HCS: ["HSC_-G-CSF","HSC_CD34+"] # These cells are collapsed into HSC cells
   anno_fibroblast: ["Fibroblasts", "Chondrocytes","Smooth_muscle_cells","Tissue_stem_cells"] # These cells are collapsed into fibroblasts
   anno_save: TRUE # set false if you don't want to save the file
-  anno_save_name:  "~/public-data/quantbio/scRNA-seq/IPF_adams_2020/Seurat_IPF_adams_ANNO.rds" # Name of the file to write new seurat object
+  anno_save_name:  "_ANNO" # Name of the file to write new seurat object
   
 #------------------CLUSTERING AND DIFFERNTIAL EXPRESSION------------------------
   DEx: TRUE # Set true if you want to run this section
   dex_confounding: FALSE # Set true if you want to check for confounding variables
-  dex_categorical_vars: ["timepoint","Phase"] # This is required. It checks to see if a categorical variable is associated with the principal components 1 through 10. If so, it may confound the data.
+  dex_categorical_vars: ["SingleR","sample","Phase"] # This is required. It checks to see if a categorical variable is associated with the principal components 1 through 10. If so, it may confound the data.
   dex_numerical_vars: ["nCount_RNA","nFeature_RNA","percent.mt"] # This is required. It checks to see if a numerical variable is associated with the principal components 1 through 10. If so, it may confound the data.
   dex_ident: "SingleR2" # Cell labels to run differential expression on
   dex_cluster_algorithm: 1 # Clustering algorithm to use (1 = louvain, 2 = louvain with multilevel)
-  dex_variance_explained: 0.8 # Percentage of variance explained by # of PCs
+  dex_variance_explained: 0.6 # Percentage of variance explained by # of PCs. I have found keeping this around 60% yields the best results but every dataset is different.
   dex_run_dex: FALSE # Set false if you do not want to run differential expression. A file will still be written with PCA, UMAP, and tSNE metadata
   dex_write_dex_seurat: TRUE
   dex_min_pct: 0.25 # Minimum percent of cells a gene can be expressed in to be identified as significant
   dex_only_positive: TRUE # If you want only examine positively expressed genes use this.
   dex_logfc_threshold: 0.0 # FC threshold for significant genes
   dex_p_val_adj: 0.1 # P value threshold for significant genes
-  dex_seurat_save_name: "~/public-data/quantbio/scRNA-seq/IPF_adams_2020/Seurat_IPF_adams_FULLYPROCESSED.rds" # Name of the file to write new seurat object in
-  dex_mat_save_name: "~/public-data/quantbio/scRNA-seq/IPF_adams_2020/Seurats_IPF_adams_DEx_output.csv" # Name of the file to write the DE gene list as
+  dex_seurat_save_name: "_FULLYPROCESSED" # Name of the file to write new seurat object in
+  dex_mat_save_name: "~/public-data/quantbio/scRNA-seq/Lymphoma_Ferreira_2024/DEx_" # Name of the file to write the DE gene list as
 ---
 
 ```{css my-header-colors, echo = FALSE}
@@ -407,14 +411,14 @@ This is a automated script to [1] annotate cell types; [2] scale and normalize e
 <!-- Fill in this information (... or delete whole section) -->
 
 ```{r echo=FALSE, out.width = "100%", fig.align = "left"}
-knitr::include_graphics("~/public-data/quantbio/scRNA-seq/IPF_adams_2020/adams_fig1.jpeg")
+knitr::include_graphics(params$figure1)
 ```
 
-Data for this analysis was taken from [here](#https://www.science.org/doi/10.1126/sciadv.aba1983) 
+Data for this analysis was taken from `r params$data_source`
 
 <br>
 
-**Figure 1)** Legend from `r params$analysed_dataset`: **A)** Overview of experimental design. (i) Disease lung explants and unused donor lungs collected. (ii) Lungs dissociated to single-cell suspension. (iii) Droplet-based scRNA-seq library preparation (iv) sequencing. (v) Exploratory analysis. (vi) Spatial localization with IHC. **(B)** Uniform Manifold Approximation and Projection (UMAP) representation of 312,928 cells from 32 IPF, 18 COPD, and 28 control donor lungs; each dot represents a single cell, and cells are labeled as one of 38 discrete cell varieties. AT, alveolar type; cDC, classical dendritic cell; pDC, plasmacytoid dendritic cell; M, macrophage; NK, natural killer; ILC, innate lymphoid cell; PNEC, pulmonary neuroendocrine cell; SMC, smooth muscle cell; VE, vascular endothelial. **(C)** Heat map of marker genes for all 38 identified cell types, categorized into four broad cell categories. Each cell type is represented by the top five genes ranked by false discovery rate (FDR) adjusted P value of a Wilcoxon rank sum test between the average expression per subject value for each cell type against the other average subject expression of the other cell types in their respective grouping. Each column represents the average expression value for one subject, hierarchically grouped by disease status and cell type. Gene expression values are unity normalized from 0 to 1 across rows within each categorical cell type group. 
+**Figure 1)** Legend from `r params$analysed_dataset`: `r params$figure1_legend`
 
 <br>
 <br>

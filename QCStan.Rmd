@@ -81,12 +81,15 @@ for(i in 1:length(seurats)){
 
 ## 1.1 - Quality Control {.tabset .tabset-pils}
 
-
-In section 1.1, we remove dead cells, doublets, and samples that are flagged as outliers. In addition, we can remove genes that only show up in a set number of cells. For example, if the gene only shows up in 1/100,000 cells, it is worth removing.
+In section 1.1, we remove dead cells, doublets, and samples that are
+flagged as outliers. In addition, we can remove genes that only show up
+in a set number of cells. For example, if the gene only shows up in
+1/100,000 cells, it is worth removing.
 
 ### Cell level (pre removal) {.tabset .tabset-pils}
 
-Here we will remove dead cells, doublets, and cells with low molecule counts. We do so by setting cut-offs for the following 3 parameters:
+Here we will remove dead cells, doublets, and cells with low molecule
+counts. We do so by setting cut-offs for the following 3 parameters:
 
 1.  `nFeature_RNA` is the number of genes detected in each cell.
 2.  `nCount_RNA` is the total number of molecules detected within a cell
@@ -153,9 +156,10 @@ for(i in 1:length(seurats)) {
 
 <br> <br>
 
-### Cell level (post removal){.tabset .tabset-pils}
+### Cell level (post removal) {.tabset .tabset-pils}
 
-Here we will remove dead cells, doublets, and cells with low molecule counts. We do so by setting cut-offs for the following 3 parameters:
+Here we will remove dead cells, doublets, and cells with low molecule
+counts. We do so by setting cut-offs for the following 3 parameters:
 
 1.  `nFeature_RNA` is the number of genes detected in each cell.
 2.  `nCount_RNA` is the total number of molecules detected within a cell
@@ -199,16 +203,21 @@ cat("\n \n \n")
 }
 ```
 
-<br>
-<br>
+<br> <br>
 
 ### Gene level
 
-Here we remove genes that only show up in a certain number of cells. You can hit the "code" button to reveal the underlying code to remove low count genes. There may be genes with zero counts across all cells too. These reduce the average expression for a cell and should be removed, as well. For our data we choose to keep only genes which are expressed in **`r params$qcs_ncells` or more cells**. 
+Here we remove genes that only show up in a certain number of cells. You
+can hit the "code" button to reveal the underlying code to remove low
+count genes. There may be genes with zero counts across all cells too.
+These reduce the average expression for a cell and should be removed, as
+well. For our data we choose to keep only genes which are expressed in
+**`r params$qcs_ncells` or more cells**.
 
 <br>
 
-This subsection is **code only**. Hit the "code" button to reveal the code.
+This subsection is **code only**. Hit the "code" button to reveal the
+code.
 
 ```{r remake-seurat, tidy='styler', tidy.opts=list(strict=FALSE)}
 ### Create the new seurat object
@@ -223,13 +232,12 @@ seurats <- lapply(X = seurats, FUN = function(x) {
 })
 ```
 
-<br>
-<br>
+<br> <br>
 
 ### Sample level {.tabset .tabset-pils}
 
-Here we remove samples that are flagged as outliers. This will remove whole samples if the sample meets the following
-criteria:
+Here we remove samples that are flagged as outliers. This will remove
+whole samples if the sample meets the following criteria:
 
 -   Is sample **UMI median below 25% quantile** of the UMI count of the
     entire dataset?
@@ -242,7 +250,6 @@ criteria:
 
 We use quantiles as opposed to 3 x MAD because the bottom 3 x MAD will
 go into a negative value, which does nothing.
-
 
 ```{r qc-samples, results="asis", eval=params$qcs_eval_sample, fig.height=12, fig.width=10}
 ### Plot the density of gene expression values by sample
@@ -328,8 +335,7 @@ cat("\n \n \n")
 
 ```
 
-<br>
-<br>
+<br> <br>
 
 #### Removed samples (if any)
 
@@ -384,9 +390,7 @@ stacked_dataframe <- do.call(rbind, d) |>
 stacked_dataframe |> render_dt()
 ```
 
-
-<br>
-<br>
+<br> <br>
 
 ```{r, remove-sample-outliers}
 ### Remove from seurat
@@ -396,16 +400,21 @@ for (i in 1:length(seurats)){
 }
 ```
 
-<br>
-<br>
+<br> <br>
 
 ## 1.2 - Standardize {.tabset .tabset-pils}
 
-In this section, we normalize the data, regress out confounding variables, and scale the data. Each tab provides more detail.
+In this section, we normalize the data, regress out confounding
+variables, and scale the data. Each tab provides more detail.
 
 ### Normalize the data
 
-This subsection is **code only**. Hit the "code" button to reveal the code. For data normalization, we use `NormalizeDatas()` that normalizes the feature expression measurements for each cell by the total expression, multiplies this by a scale factor (10,000 by default), and log-transforms the result. Normalized values are stored in **[["RNA"]]@data**. 
+This subsection is **code only**. Hit the "code" button to reveal the
+code. For data normalization, we use `NormalizeDatas()` that normalizes
+the feature expression measurements for each cell by the total
+expression, multiplies this by a scale factor (10,000 by default), and
+log-transforms the result. Normalized values are stored in
+**[["RNA"]]@data**.
 
 ```{r normalize-date, tidy='styler', tidy.opts=list(strict=FALSE), eval=params$qcs_normalize}
 seurats <- lapply(X=seurats, FUN=function(x) {
@@ -415,9 +424,7 @@ seurats <- lapply(X=seurats, FUN=function(x) {
 })
 ```
 
-<br>
-<br>
-
+<br> <br>
 
 ### Regress out confounding variables {.tabset .tabset-pils}
 
@@ -477,7 +484,10 @@ cat("\n \n \n")
 
 ### Scale the data
 
-This subsection is **code only**. Hit the "code" button to reveal the code. Next, we apply a linear transformation ('scaling') that is a standard pre-processing step prior to dimensional reduction techniques like PCA. The `ScaleData()` function:
+This subsection is **code only**. Hit the "code" button to reveal the
+code. Next, we apply a linear transformation ('scaling') that is a
+standard pre-processing step prior to dimensional reduction techniques
+like PCA. The `ScaleData()` function:
 
 1.  Shifts the expression of each gene, so that the mean expression
     across cells is 0
@@ -486,12 +496,10 @@ This subsection is **code only**. Hit the "code" button to reveal the code. Next
     that highly-expressed genes do not dominate
 3.  The results of this are stored in **[["RNA"]]@scale.data**
 
-
 **NOTE**
 
 By default `ScaleData()` will only scale the identified 2,000 genes
 unless specified using the `"features = all.genes"` argument.
-
 
 ```{r scale-data, tidy='styler', tidy.opts=list(strict=FALSE), eval=params$qcs_scale}
 if (params$qcs_scale_genes=="all") {
@@ -515,16 +523,17 @@ if (params$qcs_scale_genes=="all") {
 }
 ```
 
-<br>
-<br>
+<br> <br>
 
 ## 1.3 - Identify the cell cycle phase for each cell
 
-Here we infer the cell cycle phase in which the each cell is suspected to be in based on gene expression levels of cell cycle markers.
+Here we infer the cell cycle phase in which the each cell is suspected
+to be in based on gene expression levels of cell cycle markers.
 
 ### Score the cell cycle
 
-This subsection is **code only**. Hit the "code" button to reveal the code.
+This subsection is **code only**. Hit the "code" button to reveal the
+code.
 
 ```{r cell-cycle-intro, include=FALSE, eval=params$qcs_cc}
 qcs_cc_text = "This is done by calculating the G2M marker score with the `CellCycleScoring()` function provided in the _seurat package_."
@@ -596,9 +605,9 @@ seurats <- lapply(X=seurats, FUN=function(x) {
 
 ## 1.4 - Write to file
 
-The QC is done, the file is save on ***`r params$qcs_save_name`***.
+The QC is done, the file is save on ***`r paste0(gsub(".rds","",params$dir_seurat),params$qcs_save_name,".rds")`***.
 
 ```{r save-data, include=FALSE, eval=params$qcs_save}
 ### Merge it and write final object
-write_rds(seurats, file=params$qcs_save_name)
+write_rds(seurats, file=paste0(gsub(".rds","",params$dir_seurat),params$qcs_save_name,".rds"))
 ```

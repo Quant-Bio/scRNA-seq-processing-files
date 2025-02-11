@@ -18,7 +18,7 @@ conflict_prefer("layout","plotly")
 
 ```{r, echo = FALSE, include = FALSE}
 if(!exists("seurats")){
-  seurats = readRDS(params$qcs_save_name)
+  seurats = readRDS(paste0(gsub(".rds","",params$dir_seurat),params$qcs_save_name,".rds"))
 }
 ```
 
@@ -448,9 +448,9 @@ seurat_analysed@meta.data$SingleR2 <- fct_collapse(seurat_analysed@meta.data$Sin
 ```
 
 ## 2.4 - Write to file
-The annotation is done, the file is save on **_`r params$anno_save_name`_**.
+The annotation is done, the file is save on **_`r paste0(gsub(".rds","",params$dir_seurat),params$anno_save_name,".rds")`_**.
 
 ```{r, include=FALSE, eval=params$anno_save}
 ### Merge it and write final object
-write_rds(seurats, file=params$anno_save_name)
+write_rds(seurats, file=paste0(gsub(".rds","",params$dir_seurat),params$anno_save_name,".rds"))
 ```

@@ -40,7 +40,7 @@ cluster_option_readable = dplyr::case_when(params$dex_cluster_algorithm == 1 ~ "
 
 ```{r, echo = FALSE, include = FALSE}
 if(!exists("seurats")){
-  seurats = readRDS(params$anno_save_name)
+  seurats = readRDS(paste0(gsub(".rds","",params$dir_seurat),params$anno_save_name,".rds"))
 }
 
 ### Chang identity to cell type
@@ -318,9 +318,15 @@ Variables that are associated with the top 10 PCs. These variables may be confou
 mats<-list()
 pca.list<-list()
 
+### First, downsample seurat, otherwise, this will take an eternity
+smalls<-list()
+
 ### Calculate PC statistics (again)
 for(i in 1:length(seurats)){
-    mats[[i]]<-as.data.frame(LayerData(seurats[[i]], assay="RNA", layer="counts"))
+    Idents(seurats[[i]])<-seurats[[i]]@meta.data[,params$qcs_indent_var]
+    smalls[[i]]<-subset(seurats[[i]], downsample=1000)  
+    mats[[i]]<-as.data.frame(LayerData(smalls[[i]], assay="RNA", layer="counts"))
+    mats[[i]]<-mats[[i]][VariableFeatures(seurats[[i]]),]
     pca.list[[i]]<-list(All=FactoMineR::PCA(t(mats[[i]]), ncp=10, graph=FALSE, scale=FALSE))
 }    
 
@@ -334,7 +340,7 @@ for(i in 1:length(pca.list)) {
     anova.results[[i]] <- anova_PCA(obj_name="All",
                                pca.df=pca.list[[i]]$All,
                                metadata=seurats[[i]]@meta.data,
-                               merge_ID="Cell",
+                               merge_ID="cell_barcode",
                                cat_var=params$dex_categorical_vars,
                            numPCs=10)
     rownames(anova.results[[i]])<-anova.results[[i]]$Factor
@@ -674,9 +680,9 @@ cat("\n \n \n")
 ```
 
 ## 3.5 - Write seurat to file
-The annotation is done, the file is save on **_`r params$dex_seurat_save_name`_**.
+The annotation is done, the file is save on **_`r paste0(gsub(".rds","",params$dir_seurat),params$dex_seurat_save_name,".rds")`_**.
 
 ```{r, include=FALSE, eval=params$dex_write_dex_seurat}
 ### All the QC is done, so now we may write to file
-write_rds(seurats, file=params$dex_seurat_save_name)
+write_rds(seurats, file=paste0(gsub(".rds","",params$dir_seurat),params$dex_seurat_save_name,".rds"))
 ```
