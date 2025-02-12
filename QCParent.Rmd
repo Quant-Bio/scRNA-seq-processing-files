@@ -15,11 +15,11 @@ output:
 params:
   more_authors: "Rosa Hernansaiz, Vincent Perez, and Jen Modliszewski"
 #-----------------------------ABOUT THE DATASET --------------------------------
-  analysed_dataset: "Chen et al lymphoma, 2024"
-  dataset_source: "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE245920"
-  dir_seurat: "~/public-data/quantbio/scRNA-seq/Lymphoma_Chen_2024/Seurat_lymphoma_chen.rds"
-  figure1: "~/public-data/quantbio/scRNA-seq/Lymphoma_Chen_2024/Chen_abstract.png"
-  figure1_legend: "Above is the abstract from the Chen et al, 2024 lymphoma single-cell dataset."
+  analysed_dataset: "Song et al lymphoma, 2022"
+  dataset_source: "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE272005"
+  dir_seurat: "~/public-data/quantbio/scRNA-seq/Lymphoma_Song_2022/Seurat_lymphoma_song.rds"
+  figure1: "~/public-data/quantbio/scRNA-seq/Lymphoma_Song_2022/Song_fig1.jpg"
+  figure1_legend: "A. Flow diagram showing the tCTCL patient cohort (n= 56 patients with biopsy-proven tCTCL, including 53 transformed MF and 3 SS/overlap MF-SS with transformed tumors in skin) and correlative biospecimen studies. WES (n=54 tCTCL patients, 70 FFPE skin biopsies): 45 patients with TT, 25 patients with PP (of which 9 are transformed PP). *n=17 patients had matched transformed tumor and PP (precursor or concurrent PP; Methods). Simultaneous 5’ single cell RNAseq and single cell V(D)Jseq (n=8 tCTCL patients, each with concurrent TT and PP). Multiplex IF immune profiling by Vectra (n=21 tCTCL patients, 64 TMA cores; **n=16 patients with matched TT and PP (Methods). Clinical photographs of TT (left; PT11) and extensive patch/plaque lesions (right). B. Tumor mutation burden per MB of 33 TCGA cancer types and tCTCL, SS-Choi and SS-Wang cohorts (red). Sample size annotated at top. C. Plot represent weighted contribution of COSMIC v3.2 mutational signatures SBS7a, SBS7b, SBS7c and others in each tissue sample using deconstructSigs(38) (n=70 samples). D. Overall survival probability of tCTCL patients classified according to high versus low SBS7 mutation signature (by sum of weighted contribution from SBS7a-d) and onset of LCT to time of death or last follow up. E. Weighted contribution of SBS7a-d mutation signatures in Black/AA versus non-Black/AA patients. F. Heatmap of cosine similarities between the mutational profile of each sample and COSMIC v3.2 mutational signature in Black/AA vs non-Black/AA patients, ranked by SBS7a-d (complete COSMIC v3.2 signatures in Supplementary Fig. S3B). G, H. Oncoplot of predicted driver genes by dNdScv and MutsigCV (G) and most recurrently mutated pathway genes (H) in tCTCL (n=70 samples). Each column represents a patient tumor sample. Somatic mutations, including missense (green), nonsense (red), in frame insertion (dark grey) and deletion (light blue), frame shift insertion (orange) and deletion (blue), splice site (yellow), multi hit (purple) and genes implicated in leukemia and lymphoma by manual curation (red asterisk) are depicted. TT (magenta), PP (gray). Recurrent mutations in >10% of the samples are depicted (full mutation list in Supplemental Table S5 and S6). The predicted driver genes belong to five groups: cell cycle, chromatin modification, cell motility, apoptosis, genes implicated in leukemia/lymphomagenesis (*asterisk) and other undefined (G). Most recurrently mutated pathways are Hippo, Notch, RAS-RTK pathways and p53 (H; Supplementary Table S6)."
   is_list: FALSE
   split_by_group: FALSE
   group_name: "none" ### This splits the seurat into a list of seurats based on a group. If there is no group, place "none"
@@ -27,13 +27,13 @@ params:
 #---------------------QUALITY CONTROL AND STANDARDIZATION-----------------------
   QCS: TRUE
   organism: "human" # Organism used in the experiment. Options are "mouse" and "human".
-  qcs_indent_var: "sample" # Default identity of cells in metadata
+  qcs_indent_var: "sample_tissue" # Default identity of cells in metadata
   qcs_eval_cell: TRUE
   qcs_std_nFeature_RNA: 200 # Lowest value of nFeature_RNA before cells are pruned
   qcs_vars_regress: ["nCount_RNA", "percent.mt"] # Variables to regress out
   qcs_ncells: 10 # Lowest number of cells that express a gene before pruning the gene
   qcs_nfeatures: 10 # Lowest number of genes in a cell before pruning a cell
-  qcs_patient_id: "sample" # This will change depending on the experiment
+  qcs_patient_id: "sample_tissue" # This will change depending on the experiment
   qcs_count_cutoff: "NA" # Numerical value to set for the sample-level nFeature_RNA
   qcs_feature_cutoff: "NA" # Numerical value to set for sample-level nCount_RNA
   qcs_mt_cutoff: "NA" # Numerical value to set for sample-level mt.percent
@@ -60,12 +60,12 @@ params:
   
 #------------------CLUSTERING AND DIFFERNTIAL EXPRESSION------------------------
   DEx: TRUE # Set true if you want to run this section
-  dex_confounding: FALSE # Set true if you want to check for confounding variables
+  dex_confounding: TRUE # Set true if you want to check for confounding variables
   dex_categorical_vars: ["SingleR","sample","Phase"] # This is required. It checks to see if a categorical variable is associated with the principal components 1 through 10. If so, it may confound the data.
   dex_numerical_vars: ["nCount_RNA","nFeature_RNA","percent.mt"] # This is required. It checks to see if a numerical variable is associated with the principal components 1 through 10. If so, it may confound the data.
   dex_ident: "SingleR2" # Cell labels to run differential expression on
   dex_cluster_algorithm: 1 # Clustering algorithm to use (1 = louvain, 2 = louvain with multilevel)
-  dex_variance_explained: 0.6 # Percentage of variance explained by # of PCs. I have found keeping this around 60% yields the best results but every dataset is different.
+  dex_variance_explained: 0.55 # Percentage of variance explained by # of PCs. I have found keeping this around 60% yields the best results but every dataset is different.
   dex_run_dex: FALSE # Set false if you do not want to run differential expression. A file will still be written with PCA, UMAP, and tSNE metadata
   dex_write_dex_seurat: TRUE
   dex_min_pct: 0.25 # Minimum percent of cells a gene can be expressed in to be identified as significant
@@ -406,7 +406,11 @@ LetsMakeAHeatmap <- function(dex_data, pval, log2FC, seurat, variable, top_n,  s
 
 This is a automated script to [1] annotate cell types; [2] scale and normalize expression data; [3] remove dead cells, doublets, and outlying samples; and [3] perform dimension reduction and differential expression on expression data. **This script can take in more than a single seurat objects.**
 
+**Data was taken from: ** `r params$dataset_source`
+
+
 <br>
+
 
 <!-- Fill in this information (... or delete whole section) -->
 
@@ -414,11 +418,7 @@ This is a automated script to [1] annotate cell types; [2] scale and normalize e
 knitr::include_graphics(params$figure1)
 ```
 
-Data for this analysis was taken from `r params$data_source`
-
-<br>
-
-**Figure 1)** Legend from `r params$analysed_dataset`: `r params$figure1_legend`
+**Figure 1)** Taken from `r params$analysed_dataset` publication: `r params$figure1_legend`
 
 <br>
 <br>

@@ -336,22 +336,25 @@ glm.results<-list()
 results<-list()
 df.melt<-list()
 for(i in 1:length(pca.list)) {
+    ### Make sure cell_barcode is present
+    seurats[[i]]@meta.data$cell_barcode<-Cells(seurats[[i]])
+  
     ### [1] Run ANOVA of categorical variables
     anova.results[[i]] <- anova_PCA(obj_name="All",
                                pca.df=pca.list[[i]]$All,
                                metadata=seurats[[i]]@meta.data,
                                merge_ID="cell_barcode",
                                cat_var=params$dex_categorical_vars,
-                           numPCs=10)
+                           numPCs=PCs[[i]])
     rownames(anova.results[[i]])<-anova.results[[i]]$Factor
 
     ### [2] Run GLM for continuous variables
     glm.results[[i]] <- glm_PCA(obj_name="All",
                                 pca.list=pca.list[[i]]$All,
                                 metadata=seurats[[i]]@meta.data,
-                                merge_ID="Cell",
+                                merge_ID="cell_barcode",
                                 num_var=params$dex_numerical_vars,
-                                numPCs=10)
+                                numPCs=PCs[[i]])
     rownames(glm.results[[i]])<-glm.results[[i]]$Factor
 
     ### [3] Melt results for plotting
@@ -376,8 +379,9 @@ for (i in 1:length(seurats)) {
                                        "<=0.05"="#f47f58ff",
                                        "NS"="#FAEBddff"),
                               name="FDR adjusted p-value") +
-            labs(title="Covariates vs. PCs",
-                 subtitle=paste0("Data is from: ", names(seurats[i]))) +
+            labs(title="Covariates vs. PCs"#,
+                # subtitle=paste0("Data is from: ", names(seurats[i]))
+                 ) +
             themes$QB_theme()+
             ylab("")
     
